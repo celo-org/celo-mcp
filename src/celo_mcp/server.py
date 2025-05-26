@@ -26,22 +26,22 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="get_network_status",
-            description="Get Celo network status and connection information",
+            description="Retrieve the current status and connection information of the Celo network, including network health and connectivity details.",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="get_block",
-            description="Get block information by number or hash",
+            description="Fetch detailed information about a specific block on the Celo blockchain using its number or hash. Optionally include full transaction details within the block.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "block_identifier": {
                         "type": ["string", "integer"],
-                        "description": "Block number, hash, or 'latest'",
+                        "description": "The unique identifier for the block, which can be a block number, hash, or the keyword 'latest' to get the most recent block.",
                     },
                     "include_transactions": {
                         "type": "boolean",
-                        "description": "Whether to include full transaction details",
+                        "description": "Flag to determine whether to include detailed transaction information for each transaction in the block.",
                         "default": False,
                     },
                 },
@@ -50,35 +50,41 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_transaction",
-            description="Get transaction information by hash",
+            description="Obtain detailed information about a specific transaction on the Celo blockchain using its transaction hash.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "tx_hash": {"type": "string", "description": "Transaction hash"}
+                    "tx_hash": {
+                        "type": "string",
+                        "description": "The unique hash of the transaction to retrieve details for.",
+                    }
                 },
                 "required": ["tx_hash"],
             },
         ),
         Tool(
             name="get_account",
-            description="Get account information including balance and nonce",
+            description="Retrieve account details on the Celo blockchain, including balance and nonce, using the account's address.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "address": {"type": "string", "description": "Account address"}
+                    "address": {
+                        "type": "string",
+                        "description": "The blockchain address of the account to retrieve information for.",
+                    }
                 },
                 "required": ["address"],
             },
         ),
         Tool(
             name="get_latest_blocks",
-            description="Get information about the latest blocks",
+            description="Get information about the most recent blocks on the Celo blockchain, with the ability to specify the number of blocks to retrieve.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "count": {
                         "type": "integer",
-                        "description": "Number of blocks to retrieve",
+                        "description": "The number of latest blocks to retrieve information for, with a default of 10 and a maximum of 100.",
                         "default": 10,
                         "minimum": 1,
                         "maximum": 100,
