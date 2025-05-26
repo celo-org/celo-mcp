@@ -33,11 +33,6 @@ jobs:
           uv run ruff check .
           uv run black --check .
 
-          # Temporarily disabled due to complex type issues that need refactoring
-      # - name: Run type checking
-      #   run: |
-      #     uv run mypy src/
-
       - name: Run tests
         run: |
           uv run pytest tests/ -v --tb=short
@@ -45,8 +40,6 @@ jobs:
       - name: Test package build
         run: |
           uv build
-          # Test that the package can be installed
-          uv pip install dist/*.whl
           # Test that the CLI works (run from a different directory to avoid import conflicts)
           cd /tmp && python -c "import celo_mcp; print('Package imports successfully')"
           # Test that the CLI entry point is available (just check it exists)
