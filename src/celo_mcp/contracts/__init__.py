@@ -1,4 +1,4 @@
-"""Smart contract operations module for Celo MCP server."""
+"""Smart contract operations for Celo blockchain."""
 
 from .models import (
     ContractABI,
@@ -14,14 +14,14 @@ from .models import (
 from .service import ContractService
 
 __all__ = [
-    "ContractService",
     "ContractABI",
-    "ContractFunction",
     "ContractEvent",
+    "ContractFunction",
     "ContractInfo",
     "ContractTransaction",
+    "EventLog",
     "FunctionCall",
     "FunctionResult",
-    "EventLog",
     "GasEstimate",
+    "ContractService",
 ]

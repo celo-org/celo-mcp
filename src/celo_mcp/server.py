@@ -1,6 +1,7 @@
 """Main MCP server for Celo blockchain data access."""
 
 import asyncio
+import json
 import logging
 from typing import Any
 
@@ -9,6 +10,10 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from .blockchain_data import BlockchainDataService
+from .contracts import ContractService
+from .nfts import NFTService
+from .tokens import TokenService
+from .transactions import TransactionService
 from .utils import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -16,8 +21,12 @@ logger = logging.getLogger(__name__)
 # Initialize server
 server = Server("celo-mcp")
 
-# Global service instance
+# Global service instances
 blockchain_service: BlockchainDataService = None
+token_service: TokenService = None
+nft_service: NFTService = None
+contract_service: ContractService = None
+transaction_service: TransactionService = None
 
 
 @server.list_tools()
@@ -92,6 +101,203 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": [],
             },
+        ),
+        # Token operations
+        Tool(
+            name="get_token_info",
+            description="Get detailed information about a token including name, symbol, decimals, and total supply.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "token_address": {
+                        "type": "string",
+                        "description": "The contract address of the token.",
+                    }
+                },
+                "required": ["token_address"],
+            },
+        ),
+        Tool(
+            name="get_token_balance",
+            description="Get the token balance for a specific address.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "token_address": {
+                        "type": "string",
+                        "description": "The contract address of the token.",
+                    },
+                    "address": {
+                        "type": "string",
+                        "description": "The address to check the balance for.",
+                    },
+                },
+                "required": ["token_address", "address"],
+            },
+        ),
+        Tool(
+            name="get_celo_balances",
+            description="Get CELO and stable token balances for an address.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "address": {
+                        "type": "string",
+                        "description": "The address to check balances for.",
+                    }
+                },
+                "required": ["address"],
+            },
+        ),
+        # NFT operations
+        Tool(
+            name="get_nft_info",
+            description="Get information about an NFT including metadata and collection details.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract_address": {
+                        "type": "string",
+                        "description": "The NFT contract address.",
+                    },
+                    "token_id": {
+                        "type": "string",
+                        "description": "The token ID of the NFT.",
+                    },
+                },
+                "required": ["contract_address", "token_id"],
+            },
+        ),
+        Tool(
+            name="get_nft_balance",
+            description="Get NFT balance for an address (ERC721 or ERC1155).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract_address": {
+                        "type": "string",
+                        "description": "The NFT contract address.",
+                    },
+                    "address": {
+                        "type": "string",
+                        "description": "The address to check the balance for.",
+                    },
+                    "token_id": {
+                        "type": "string",
+                        "description": "The token ID (required for ERC1155).",
+                        "default": None,
+                    },
+                },
+                "required": ["contract_address", "address"],
+            },
+        ),
+        # Contract operations
+        Tool(
+            name="call_contract_function",
+            description="Call a read-only contract function.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract_address": {
+                        "type": "string",
+                        "description": "The contract address.",
+                    },
+                    "function_name": {
+                        "type": "string",
+                        "description": "The function name to call.",
+                    },
+                    "function_args": {
+                        "type": "array",
+                        "description": "The function arguments.",
+                        "default": [],
+                    },
+                    "abi": {
+                        "type": "array",
+                        "description": "The contract ABI.",
+                    },
+                    "from_address": {
+                        "type": "string",
+                        "description": "The caller address (optional).",
+                        "default": None,
+                    },
+                },
+                "required": ["contract_address", "function_name", "abi"],
+            },
+        ),
+        Tool(
+            name="estimate_contract_gas",
+            description="Estimate gas for a contract function call.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract_address": {
+                        "type": "string",
+                        "description": "The contract address.",
+                    },
+                    "function_name": {
+                        "type": "string",
+                        "description": "The function name to call.",
+                    },
+                    "function_args": {
+                        "type": "array",
+                        "description": "The function arguments.",
+                        "default": [],
+                    },
+                    "abi": {
+                        "type": "array",
+                        "description": "The contract ABI.",
+                    },
+                    "from_address": {
+                        "type": "string",
+                        "description": "The caller address.",
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "Value to send (in wei).",
+                        "default": "0",
+                    },
+                },
+                "required": [
+                    "contract_address",
+                    "function_name",
+                    "abi",
+                    "from_address",
+                ],
+            },
+        ),
+        # Transaction operations
+        Tool(
+            name="estimate_transaction",
+            description="Estimate gas and cost for a transaction.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "to": {
+                        "type": "string",
+                        "description": "The recipient address.",
+                    },
+                    "from_address": {
+                        "type": "string",
+                        "description": "The sender address.",
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "Value to send (in wei).",
+                        "default": "0",
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "Transaction data.",
+                        "default": "0x",
+                    },
+                },
+                "required": ["to", "from_address"],
+            },
+        ),
+        Tool(
+            name="get_gas_fee_data",
+            description="Get current gas fee data including EIP-1559 fees.",
+            inputSchema={"type": "object", "properties": {}, "required": []},
         ),
     ]
 

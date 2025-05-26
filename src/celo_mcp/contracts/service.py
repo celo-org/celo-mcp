@@ -1,17 +1,15 @@
-"""Smart contract operations service for Celo blockchain."""
+"""Smart contract service for Celo blockchain."""
 
-import asyncio
 import json
 import logging
-from decimal import Decimal
 from typing import Any
 
 from eth_abi import decode, encode
-from eth_utils import to_checksum_address
+from eth_utils import function_signature_to_4byte_selector, to_hex
+from web3 import Web3
 from web3.contract import Contract
 
 from ..blockchain_data.client import CeloClient
-from ..utils import CacheManager, validate_address
 from .models import (
     ContractABI,
     ContractEvent,
@@ -28,44 +26,27 @@ logger = logging.getLogger(__name__)
 
 
 class ContractService:
-    """Service for smart contract operations on Celo blockchain."""
+    """Service for smart contract interactions."""
 
-    def __init__(self, celo_client: CeloClient):
-        """Initialize contract service.
+    def __init__(self, client: CeloClient):
+        """Initialize contract service."""
+        self.client = client
+        self.w3 = client.w3
+        self._contract_cache: dict[str, Contract] = {}
+        self._abi_cache: dict[str, list[dict[str, Any]]] = {}
 
-        Args:
-            celo_client: Celo blockchain client
-        """
-        self.client = celo_client
-        self.cache = CacheManager()
-        self.stored_abis: dict[str, list[dict[str, Any]]] = {}
+    def _get_contract(self, address: str, abi: list[dict[str, Any]]) -> Contract:
+        """Get contract instance with caching."""
+        cache_key = f"{address}:{hash(str(abi))}"
+        if cache_key not in self._contract_cache:
+            checksum_address = self.w3.to_checksum_address(address)
+            self._contract_cache[cache_key] = self.w3.eth.contract(
+                address=checksum_address, abi=abi
+            )
+        return self._contract_cache[cache_key]
 
-    def _get_contract(
-        self, contract_address: str, abi: list[dict[str, Any]]
-    ) -> Contract:
-        """Get contract instance.
-
-        Args:
-            contract_address: Contract address
-            abi: Contract ABI
-
-        Returns:
-            Web3 contract instance
-        """
-        checksum_address = to_checksum_address(contract_address)
-        return self.client.w3.eth.contract(address=checksum_address, abi=abi)
-
-    def _parse_abi(
-        self, abi: list[dict[str, Any]]
-    ) -> tuple[list[ContractFunction], list[ContractEvent], dict[str, Any] | None]:
-        """Parse ABI into functions, events, and constructor.
-
-        Args:
-            abi: Contract ABI
-
-        Returns:
-            Tuple of (functions, events, constructor)
-        """
+    def parse_abi(self, abi: list[dict[str, Any]]) -> ContractABI:
+        """Parse contract ABI into structured format."""
         functions = []
         events = []
         constructor = None
@@ -78,6 +59,7 @@ class ContractService:
                         inputs=item.get("inputs", []),
                         outputs=item.get("outputs", []),
                         state_mutability=item.get("stateMutability", "nonpayable"),
+                        function_type=item.get("type", "function"),
                         constant=item.get("constant", False),
                         payable=item.get("payable", False),
                     )
@@ -93,447 +75,301 @@ class ContractService:
             elif item.get("type") == "constructor":
                 constructor = item
 
-        return functions, events, constructor
-
-    def _format_amount(self, amount: int, decimals: int = 18) -> str:
-        """Format amount with decimals.
-
-        Args:
-            amount: Raw amount
-            decimals: Number of decimals
-
-        Returns:
-            Formatted amount string
-        """
-        if decimals == 0:
-            return str(amount)
-
-        decimal_amount = Decimal(amount) / Decimal(10**decimals)
-        return f"{decimal_amount:.{min(decimals, 6)}f}".rstrip("0").rstrip(".")
-
-    async def store_contract_abi(
-        self, contract_address: str, abi: list[dict[str, Any]]
-    ) -> ContractABI:
-        """Store contract ABI for future use.
-
-        Args:
-            contract_address: Contract address
-            abi: Contract ABI
-
-        Returns:
-            Parsed contract ABI
-        """
-        if not validate_address(contract_address):
-            raise ValueError(f"Invalid contract address: {contract_address}")
-
-        checksum_address = to_checksum_address(contract_address)
-        self.stored_abis[checksum_address] = abi
-
-        # Parse ABI
-        functions, events, constructor = self._parse_abi(abi)
-
-        contract_abi = ContractABI(
-            contract_address=checksum_address,
+        return ContractABI(
+            contract_address="",  # Will be set when used
             abi=abi,
             functions=functions,
             events=events,
             constructor=constructor,
         )
 
-        # Cache for 1 hour
-        cache_key = f"contract_abi_{checksum_address.lower()}"
-        await self.cache.set(cache_key, contract_abi.dict(), ttl=3600)
-
-        return contract_abi
-
-    async def get_contract_abi(self, contract_address: str) -> ContractABI | None:
-        """Get stored contract ABI.
-
-        Args:
-            contract_address: Contract address
-
-        Returns:
-            Contract ABI or None if not found
-        """
-        if not validate_address(contract_address):
-            raise ValueError(f"Invalid contract address: {contract_address}")
-
-        checksum_address = to_checksum_address(contract_address)
-
-        # Check cache first
-        cache_key = f"contract_abi_{checksum_address.lower()}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return ContractABI(**cached)
-
-        # Check stored ABIs
-        if checksum_address in self.stored_abis:
-            abi = self.stored_abis[checksum_address]
-            functions, events, constructor = self._parse_abi(abi)
-
-            contract_abi = ContractABI(
-                contract_address=checksum_address,
-                abi=abi,
-                functions=functions,
-                events=events,
-                constructor=constructor,
-            )
-
-            # Cache for 1 hour
-            await self.cache.set(cache_key, contract_abi.dict(), ttl=3600)
-            return contract_abi
-
-        return None
-
-    async def call_contract_function(
-        self,
-        contract_address: str,
-        function_name: str,
-        function_args: list[Any] = None,
-        from_address: str | None = None,
-    ) -> FunctionResult:
-        """Call a read-only contract function.
-
-        Args:
-            contract_address: Contract address
-            function_name: Function name
-            function_args: Function arguments
-            from_address: Caller address (optional)
-
-        Returns:
-            Function call result
-        """
-        if not validate_address(contract_address):
-            raise ValueError(f"Invalid contract address: {contract_address}")
-
-        if function_args is None:
-            function_args = []
-
+    async def get_contract_info(self, address: str) -> ContractInfo:
+        """Get contract information."""
         try:
-            # Get contract ABI
-            contract_abi = await self.get_contract_abi(contract_address)
-            if not contract_abi:
-                raise ValueError(f"No ABI found for contract {contract_address}")
+            checksum_address = self.w3.to_checksum_address(address)
 
-            # Get contract instance
-            contract = self._get_contract(contract_address, contract_abi.abi)
+            # Get basic contract info
+            code = await self.w3.eth.get_code(checksum_address)
+            is_contract = len(code) > 0
 
-            # Prepare function call
-            if from_address:
-                if not validate_address(from_address):
-                    raise ValueError(f"Invalid from address: {from_address}")
-                from_address = to_checksum_address(from_address)
+            if not is_contract:
+                raise ValueError(f"No contract found at address {address}")
 
-            loop = asyncio.get_event_loop()
+            # Try to get creation info from transaction history
+            # This is a simplified approach - in production you might want to use
+            # block explorers or indexing services
+            creation_transaction = None
+            creator_address = None
 
-            # Call function
-            if from_address:
-                result = await loop.run_in_executor(
-                    None,
-                    lambda: getattr(contract.functions, function_name)(
-                        *function_args
-                    ).call({"from": from_address}),
-                )
-            else:
-                result = await loop.run_in_executor(
-                    None,
-                    lambda: getattr(contract.functions, function_name)(
-                        *function_args
-                    ).call(),
-                )
-
-            return FunctionResult(
-                success=True,
-                result=result,
+            return ContractInfo(
+                address=checksum_address,
+                name=None,  # Would need external service to get name
+                compiler_version=None,
+                optimization=None,
+                source_code=None,
+                abi=None,
+                creation_transaction=creation_transaction,
+                creator_address=creator_address,
+                is_verified=False,
             )
 
         except Exception as e:
-            logger.error(f"Failed to call contract function {function_name}: {e}")
-            return FunctionResult(
-                success=False,
-                error=str(e),
-            )
-
-    async def create_contract_transaction(
-        self,
-        contract_address: str,
-        function_name: str,
-        function_args: list[Any] = None,
-        from_address: str = None,
-        value: str = "0",
-        gas_limit: int | None = None,
-    ) -> ContractTransaction:
-        """Create a contract transaction for a state-changing function.
-
-        Args:
-            contract_address: Contract address
-            function_name: Function name
-            function_args: Function arguments
-            from_address: Sender address
-            value: Value to send (in wei)
-            gas_limit: Gas limit (optional, will estimate if not provided)
-
-        Returns:
-            Contract transaction data
-        """
-        if not validate_address(contract_address):
-            raise ValueError(f"Invalid contract address: {contract_address}")
-        if not validate_address(from_address):
-            raise ValueError(f"Invalid from address: {from_address}")
-
-        if function_args is None:
-            function_args = []
-
-        try:
-            # Get contract ABI
-            contract_abi = await self.get_contract_abi(contract_address)
-            if not contract_abi:
-                raise ValueError(f"No ABI found for contract {contract_address}")
-
-            # Get contract instance
-            contract = self._get_contract(contract_address, contract_abi.abi)
-            from_address = to_checksum_address(from_address)
-
-            loop = asyncio.get_event_loop()
-
-            # Build transaction
-            transaction_data = {
-                "from": from_address,
-                "value": int(value),
-                "gasPrice": await loop.run_in_executor(
-                    None, lambda: self.client.w3.eth.gas_price
-                ),
-                "nonce": await loop.run_in_executor(
-                    None, lambda: self.client.w3.eth.get_transaction_count(from_address)
-                ),
-            }
-
-            if gas_limit:
-                transaction_data["gas"] = gas_limit
-            else:
-                # Estimate gas
-                try:
-                    estimated_gas = await loop.run_in_executor(
-                        None,
-                        lambda: getattr(contract.functions, function_name)(
-                            *function_args
-                        ).estimate_gas(transaction_data),
-                    )
-                    transaction_data["gas"] = int(estimated_gas * 1.2)  # Add 20% buffer
-                except Exception:
-                    transaction_data["gas"] = 200000  # Default gas limit
-
-            # Build the transaction
-            built_transaction = await loop.run_in_executor(
-                None,
-                lambda: getattr(contract.functions, function_name)(
-                    *function_args
-                ).build_transaction(transaction_data),
-            )
-
-            return ContractTransaction(
-                contract_address=to_checksum_address(contract_address),
-                function_name=function_name,
-                function_args=function_args,
-                from_address=from_address,
-                value=value,
-                gas_limit=built_transaction["gas"],
-                gas_price=str(built_transaction["gasPrice"]),
-                nonce=built_transaction["nonce"],
-                data=built_transaction["data"],
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to create contract transaction: {e}")
+            logger.error(f"Error getting contract info for {address}: {e}")
             raise
+
+    async def call_function(
+        self, call: FunctionCall, abi: list[dict[str, Any]]
+    ) -> FunctionResult:
+        """Call a contract function (read-only)."""
+        try:
+            contract = self._get_contract(call.contract_address, abi)
+
+            # Get the function
+            if not hasattr(contract.functions, call.function_name):
+                return FunctionResult(
+                    success=False,
+                    error=f"Function {call.function_name} not found in contract",
+                )
+
+            func = getattr(contract.functions, call.function_name)
+
+            # Call the function
+            if call.function_args:
+                result = await func(*call.function_args).call(
+                    {"from": call.from_address} if call.from_address else {}
+                )
+            else:
+                result = await func().call(
+                    {"from": call.from_address} if call.from_address else {}
+                )
+
+            return FunctionResult(success=True, result=result)
+
+        except Exception as e:
+            logger.error(f"Error calling function {call.function_name}: {e}")
+            return FunctionResult(success=False, error=str(e))
 
     async def estimate_gas(
-        self,
-        contract_address: str,
-        function_name: str,
-        function_args: list[Any] = None,
-        from_address: str = None,
-        value: str = "0",
+        self, call: FunctionCall, abi: list[dict[str, Any]]
     ) -> GasEstimate:
-        """Estimate gas for a contract function call.
-
-        Args:
-            contract_address: Contract address
-            function_name: Function name
-            function_args: Function arguments
-            from_address: Sender address
-            value: Value to send (in wei)
-
-        Returns:
-            Gas estimate
-        """
-        if not validate_address(contract_address):
-            raise ValueError(f"Invalid contract address: {contract_address}")
-
-        if function_args is None:
-            function_args = []
-
+        """Estimate gas for a contract function call."""
         try:
-            # Get contract ABI
-            contract_abi = await self.get_contract_abi(contract_address)
-            if not contract_abi:
-                raise ValueError(f"No ABI found for contract {contract_address}")
+            contract = self._get_contract(call.contract_address, abi)
 
-            # Get contract instance
-            contract = self._get_contract(contract_address, contract_abi.abi)
+            # Get the function
+            func = getattr(contract.functions, call.function_name)
 
-            loop = asyncio.get_event_loop()
-
-            # Prepare transaction data
-            transaction_data = {"value": int(value)}
-            if from_address:
-                if not validate_address(from_address):
-                    raise ValueError(f"Invalid from address: {from_address}")
-                transaction_data["from"] = to_checksum_address(from_address)
+            # Build transaction
+            tx_params = {
+                "from": call.from_address or "0x" + "0" * 40,
+                "value": int(call.value) if call.value else 0,
+            }
 
             # Estimate gas
-            estimated_gas = await loop.run_in_executor(
-                None,
-                lambda: getattr(contract.functions, function_name)(
-                    *function_args
-                ).estimate_gas(transaction_data),
-            )
+            if call.function_args:
+                gas_estimate = await func(*call.function_args).estimate_gas(tx_params)
+            else:
+                gas_estimate = await func().estimate_gas(tx_params)
 
             # Get current gas price
-            gas_price = await loop.run_in_executor(
-                None, lambda: self.client.w3.eth.gas_price
-            )
+            gas_price = await self.w3.eth.gas_price
 
             # Calculate estimated cost
-            estimated_cost = estimated_gas * gas_price
+            estimated_cost = gas_estimate * gas_price
+            estimated_cost_formatted = self.w3.from_wei(estimated_cost, "ether")
 
             return GasEstimate(
-                gas_limit=estimated_gas,
+                gas_limit=gas_estimate,
                 gas_price=str(gas_price),
                 estimated_cost=str(estimated_cost),
-                estimated_cost_formatted=self._format_amount(estimated_cost, 18),
+                estimated_cost_formatted=f"{estimated_cost_formatted} CELO",
             )
 
         except Exception as e:
-            logger.error(f"Failed to estimate gas: {e}")
+            logger.error(f"Error estimating gas for {call.function_name}: {e}")
             raise
 
-    async def get_contract_events(
+    async def build_transaction(
+        self, call: FunctionCall, abi: list[dict[str, Any]]
+    ) -> ContractTransaction:
+        """Build a contract transaction."""
+        try:
+            contract = self._get_contract(call.contract_address, abi)
+
+            # Get the function
+            func = getattr(contract.functions, call.function_name)
+
+            # Get nonce
+            nonce = await self.w3.eth.get_transaction_count(call.from_address)
+
+            # Estimate gas if not provided
+            gas_limit = call.gas_limit
+            if not gas_limit:
+                gas_estimate = await self.estimate_gas(call, abi)
+                gas_limit = gas_estimate.gas_limit
+
+            # Get gas price
+            gas_price = await self.w3.eth.gas_price
+
+            # Build transaction
+            if call.function_args:
+                tx = await func(*call.function_args).build_transaction(
+                    {
+                        "from": call.from_address,
+                        "value": int(call.value) if call.value else 0,
+                        "gas": gas_limit,
+                        "gasPrice": gas_price,
+                        "nonce": nonce,
+                    }
+                )
+            else:
+                tx = await func().build_transaction(
+                    {
+                        "from": call.from_address,
+                        "value": int(call.value) if call.value else 0,
+                        "gas": gas_limit,
+                        "gasPrice": gas_price,
+                        "nonce": nonce,
+                    }
+                )
+
+            return ContractTransaction(
+                contract_address=call.contract_address,
+                function_name=call.function_name,
+                function_args=call.function_args,
+                from_address=call.from_address,
+                value=call.value,
+                gas_limit=gas_limit,
+                gas_price=str(gas_price),
+                nonce=nonce,
+                data=tx["data"],
+            )
+
+        except Exception as e:
+            logger.error(f"Error building transaction for {call.function_name}: {e}")
+            raise
+
+    async def get_events(
         self,
         contract_address: str,
-        event_name: str | None = None,
-        from_block: int | str = "latest",
+        abi: list[dict[str, Any]],
+        event_name: str,
+        from_block: int = 0,
         to_block: int | str = "latest",
         argument_filters: dict[str, Any] | None = None,
     ) -> list[EventLog]:
-        """Get contract events.
-
-        Args:
-            contract_address: Contract address
-            event_name: Event name (optional, gets all events if None)
-            from_block: Starting block
-            to_block: Ending block
-            argument_filters: Event argument filters
-
-        Returns:
-            List of event logs
-        """
-        if not validate_address(contract_address):
-            raise ValueError(f"Invalid contract address: {contract_address}")
-
+        """Get contract events."""
         try:
-            # Get contract ABI
-            contract_abi = await self.get_contract_abi(contract_address)
-            if not contract_abi:
-                raise ValueError(f"No ABI found for contract {contract_address}")
+            contract = self._get_contract(contract_address, abi)
 
-            # Get contract instance
-            contract = self._get_contract(contract_address, contract_abi.abi)
+            # Get the event
+            if not hasattr(contract.events, event_name):
+                raise ValueError(f"Event {event_name} not found in contract")
 
-            loop = asyncio.get_event_loop()
+            event = getattr(contract.events, event_name)
+
+            # Create filter
+            filter_params = {
+                "fromBlock": from_block,
+                "toBlock": to_block,
+            }
+
+            if argument_filters:
+                filter_params["argument_filters"] = argument_filters
 
             # Get events
-            if event_name:
-                event_filter = getattr(contract.events, event_name).create_filter(
-                    fromBlock=from_block,
-                    toBlock=to_block,
-                    argument_filters=argument_filters or {},
-                )
-            else:
-                # Get all events
-                event_filter = contract.events.allEvents().create_filter(
-                    fromBlock=from_block,
-                    toBlock=to_block,
-                )
+            events = await event.create_filter(**filter_params).get_all_entries()
 
-            events = await loop.run_in_executor(None, event_filter.get_all_entries)
-
+            # Convert to EventLog models
             event_logs = []
-            for event in events:
-                event_log = EventLog(
-                    address=event["address"],
-                    topics=[topic.hex() for topic in event["topics"]],
-                    data=event["data"],
-                    block_number=event["blockNumber"],
-                    transaction_hash=event["transactionHash"].hex(),
-                    transaction_index=event["transactionIndex"],
-                    block_hash=event["blockHash"].hex(),
-                    log_index=event["logIndex"],
-                    removed=event.get("removed", False),
-                    event_name=event.get("event"),
-                    decoded_data=(
-                        dict(event.get("args", {})) if event.get("args") else None
-                    ),
+            for event_data in events:
+                # Decode event data
+                decoded_data = {}
+                if hasattr(event_data, "args"):
+                    decoded_data = dict(event_data.args)
+
+                event_logs.append(
+                    EventLog(
+                        address=event_data.address,
+                        topics=[to_hex(topic) for topic in event_data.topics],
+                        data=to_hex(event_data.data),
+                        block_number=event_data.blockNumber,
+                        transaction_hash=to_hex(event_data.transactionHash),
+                        transaction_index=event_data.transactionIndex,
+                        block_hash=to_hex(event_data.blockHash),
+                        log_index=event_data.logIndex,
+                        removed=event_data.get("removed", False),
+                        event_name=event_name,
+                        decoded_data=decoded_data,
+                    )
                 )
-                event_logs.append(event_log)
 
             return event_logs
 
         except Exception as e:
-            logger.error(f"Failed to get contract events: {e}")
+            logger.error(f"Error getting events for {event_name}: {e}")
             raise
 
-    async def get_contract_info(self, contract_address: str) -> ContractInfo:
-        """Get contract information.
-
-        Args:
-            contract_address: Contract address
-
-        Returns:
-            Contract information
-        """
-        if not validate_address(contract_address):
-            raise ValueError(f"Invalid contract address: {contract_address}")
-
-        cache_key = f"contract_info_{contract_address.lower()}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return ContractInfo(**cached)
-
+    def encode_function_data(
+        self, function_name: str, function_args: list[Any], abi: list[dict[str, Any]]
+    ) -> str:
+        """Encode function call data."""
         try:
-            checksum_address = to_checksum_address(contract_address)
+            # Find function in ABI
+            function_abi = None
+            for item in abi:
+                if item.get("type") == "function" and item.get("name") == function_name:
+                    function_abi = item
+                    break
 
-            # Get basic contract info
-            account = await self.client.get_account(checksum_address)
+            if not function_abi:
+                raise ValueError(f"Function {function_name} not found in ABI")
 
-            # Check if it's a contract
-            is_contract = account.is_contract
+            # Create function signature
+            input_types = [input_item["type"] for input_item in function_abi["inputs"]]
+            function_signature = f"{function_name}({','.join(input_types)})"
 
-            contract_info = ContractInfo(
-                address=checksum_address,
-                is_verified=False,  # Would need external API to verify
-            )
+            # Get function selector
+            selector = function_signature_to_4byte_selector(function_signature)
 
-            if is_contract:
-                # Get stored ABI if available
-                stored_abi = await self.get_contract_abi(checksum_address)
-                if stored_abi:
-                    contract_info.abi = stored_abi.abi
-
-            # Cache for 1 hour
-            await self.cache.set(cache_key, contract_info.dict(), ttl=3600)
-            return contract_info
+            # Encode arguments
+            if function_args and input_types:
+                encoded_args = encode(input_types, function_args)
+                return to_hex(selector + encoded_args)
+            else:
+                return to_hex(selector)
 
         except Exception as e:
-            logger.error(f"Failed to get contract info for {contract_address}: {e}")
+            logger.error(f"Error encoding function data for {function_name}: {e}")
+            raise
+
+    def decode_function_result(
+        self, data: str, function_name: str, abi: list[dict[str, Any]]
+    ) -> Any:
+        """Decode function call result."""
+        try:
+            # Find function in ABI
+            function_abi = None
+            for item in abi:
+                if item.get("type") == "function" and item.get("name") == function_name:
+                    function_abi = item
+                    break
+
+            if not function_abi:
+                raise ValueError(f"Function {function_name} not found in ABI")
+
+            # Get output types
+            output_types = [output["type"] for output in function_abi["outputs"]]
+
+            if not output_types:
+                return None
+
+            # Decode data
+            decoded = decode(output_types, bytes.fromhex(data[2:]))
+
+            # Return single value if only one output, otherwise return tuple
+            return decoded[0] if len(decoded) == 1 else decoded
+
+        except Exception as e:
+            logger.error(f"Error decoding function result for {function_name}: {e}")
             raise
