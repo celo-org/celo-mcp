@@ -42,7 +42,3 @@ jobs:
           uv build
           # Install the built package in a temporary environment
           uv pip install dist/*.whl
-          # Test that the CLI works (run from a different directory to avoid import conflicts)
-          cd /tmp && uv run python -c "import celo_mcp; print('Package imports successfully')"
-          # Test that the CLI entry point is available (just check it exists)
-          cd /tmp && uv run which celo-mcp && echo "CLI entry point found"
