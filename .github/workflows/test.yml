@@ -1,0 +1,50 @@
+name: Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras
+
+      - name: Run linting
+        run: |
+          uv run ruff check .
+          uv run black --check .
+
+      - name: Run type checking
+        run: |
+          uv run mypy src/
+
+      - name: Run tests
+        run: |
+          uv run pytest tests/ -v --tb=short
+
+      - name: Test package build
+        run: |
+          uv build
+          # Test that the package can be installed
+          uv pip install dist/*.whl
+          # Test that the CLI works
+          python -c "import celo_mcp; print('Package imports successfully')"

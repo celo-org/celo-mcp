@@ -586,6 +586,50 @@ Low-level client for direct blockchain interaction.
 7. Push to the branch (`git push origin feature/amazing-feature`)
 8. Open a Pull Request
 
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/viral-sangani/celo-mcp.git
+cd celo-mcp
+
+# Install dependencies
+uv sync --all-extras
+
+# Run tests
+uv run pytest
+
+# Run linting
+uv run ruff check .
+uv run black --check .
+
+# Run type checking
+uv run mypy src/
+```
+
+### Release Process
+
+This project uses automated CI/CD for releases. See [docs/CICD.md](docs/CICD.md) for detailed information.
+
+**Quick Release:**
+
+```bash
+# Create a patch release (0.1.0 → 0.1.1)
+python scripts/release.py patch
+
+# Create a minor release (0.1.0 → 0.2.0)
+python scripts/release.py minor
+
+# Create a major release (0.1.0 → 1.0.0)
+python scripts/release.py major
+```
+
+The release script will automatically:
+
+- Update the version in `pyproject.toml`
+- Create a git tag
+- Trigger GitHub Actions to publish to PyPI
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
