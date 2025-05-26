@@ -31,9 +31,9 @@ def update_version(new_version):
     pyproject_path = Path("pyproject.toml")
     content = pyproject_path.read_text()
 
-    # Update version
+    # Update only the project version (not python_version or target-version)
     updated_content = re.sub(
-        r'version = "[^"]+"', f'version = "{new_version}"', content
+        r'^version = "[^"]+"', f'version = "{new_version}"', content, flags=re.MULTILINE
     )
 
     pyproject_path.write_text(updated_content)
