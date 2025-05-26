@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+
 from celo_mcp import BlockchainDataService, CeloClient
 
 

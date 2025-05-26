@@ -2,8 +2,8 @@
 
 import asyncio
 import time
-from typing import Any, Dict, Optional
 from collections import OrderedDict
+from typing import Any
 
 from ..config import get_settings
 
@@ -11,9 +11,7 @@ from ..config import get_settings
 class CacheManager:
     """Simple in-memory cache manager with TTL support."""
 
-    def __init__(
-        self, max_size: Optional[int] = None, default_ttl: Optional[int] = None
-    ):
+    def __init__(self, max_size: int | None = None, default_ttl: int | None = None):
         """Initialize cache manager.
 
         Args:
@@ -23,10 +21,10 @@ class CacheManager:
         settings = get_settings()
         self.max_size = max_size or settings.cache_size
         self.default_ttl = default_ttl or settings.cache_ttl
-        self._cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+        self._cache: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._lock = asyncio.Lock()
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         """Get value from cache.
 
         Args:
@@ -50,7 +48,7 @@ class CacheManager:
             self._cache.move_to_end(key)
             return entry["value"]
 
-    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+    async def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Set value in cache.
 
         Args:
@@ -113,7 +111,7 @@ class CacheManager:
 
             return len(expired_keys)
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         """Get cache statistics.
 
         Returns:

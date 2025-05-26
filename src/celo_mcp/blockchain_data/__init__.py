@@ -1,7 +1,7 @@
 """Blockchain data access module for Celo MCP server."""
 
 from .client import CeloClient
-from .models import Block, Transaction, Account
+from .models import Account, Block, Transaction
 from .service import BlockchainDataService
 
 __all__ = [

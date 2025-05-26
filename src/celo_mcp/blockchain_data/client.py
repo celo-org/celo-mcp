@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import httpx
 from web3 import Web3
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class CeloClient:
     """Client for interacting with Celo blockchain."""
 
-    def __init__(self, rpc_url: Optional[str] = None, use_testnet: bool = False):
+    def __init__(self, rpc_url: str | None = None, use_testnet: bool = False):
         """Initialize Celo client.
 
         Args:
@@ -127,7 +127,7 @@ class CeloClient:
             raise
 
     async def get_block(
-        self, block_identifier: Union[int, str], full_transactions: bool = False
+        self, block_identifier: int | str, full_transactions: bool = False
     ) -> Block:
         """Get block by number or hash.
 

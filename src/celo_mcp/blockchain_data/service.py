@@ -1,10 +1,8 @@
 """Blockchain data service for high-level operations."""
 
 import logging
-from typing import List, Optional, Union
 
 from .client import CeloClient
-from .models import Account, Block, NetworkInfo, Transaction
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +10,7 @@ logger = logging.getLogger(__name__)
 class BlockchainDataService:
     """High-level service for blockchain data operations."""
 
-    def __init__(self, client: Optional[CeloClient] = None):
+    def __init__(self, client: CeloClient | None = None):
         """Initialize service."""
         self.client = client or CeloClient()
 
@@ -37,7 +35,7 @@ class BlockchainDataService:
             return {"connected": False, "error": str(e)}
 
     async def get_block_details(
-        self, block_identifier: Union[int, str], include_transactions: bool = False
+        self, block_identifier: int | str, include_transactions: bool = False
     ) -> dict:
         """Get detailed block information."""
         try:
@@ -93,7 +91,7 @@ class BlockchainDataService:
             logger.error(f"Failed to get account details for {address}: {e}")
             raise
 
-    async def get_latest_blocks(self, count: int = 10) -> List[dict]:
+    async def get_latest_blocks(self, count: int = 10) -> list[dict]:
         """Get latest blocks."""
         try:
             # Get latest block number

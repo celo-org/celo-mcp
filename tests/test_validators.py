@@ -1,12 +1,10 @@
 """Tests for validation utilities."""
 
-import pytest
 from celo_mcp.utils.validators import (
     validate_address,
+    validate_amount,
     validate_block_number,
     validate_tx_hash,
-    validate_private_key,
-    validate_amount,
 )
 
 
@@ -91,8 +89,10 @@ class TestValidateTxHash:
         """Test invalid transaction hash formats."""
         invalid_hashes = [
             "0x123",  # Too short
-            "0x12345678901234567890123456789012345678901234567890123456789012345",  # Too long
-            "0xGHIJ567890123456789012345678901234567890123456789012345678901234",  # Invalid hex
+            # Too long
+            "0x12345678901234567890123456789012345678901234567890123456789012345",
+            # Invalid hex
+            "0xGHIJ567890123456789012345678901234567890123456789012345678901234",
             "",  # Empty
             None,  # None
             123,  # Not string

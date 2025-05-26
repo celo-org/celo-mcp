@@ -1,8 +1,6 @@
 """Settings configuration for Celo MCP server."""
 
-import os
 from functools import lru_cache
-from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -42,8 +40,8 @@ class Settings(BaseSettings):
     )
 
     # Optional Custom Configuration
-    custom_rpc_url: Optional[str] = Field(default=None, description="Custom RPC URL")
-    custom_api_key: Optional[str] = Field(default=None, description="Custom API key")
+    custom_rpc_url: str | None = Field(default=None, description="Custom RPC URL")
+    custom_api_key: str | None = Field(default=None, description="Custom API key")
 
     class Config:
         """Pydantic configuration."""
@@ -53,7 +51,7 @@ class Settings(BaseSettings):
         case_sensitive = False
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()

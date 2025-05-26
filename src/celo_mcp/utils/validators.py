@@ -1,7 +1,6 @@
 """Validation utilities for Celo MCP server."""
 
 import re
-from typing import Union
 
 
 def validate_address(address: str) -> bool:
@@ -28,7 +27,7 @@ def validate_address(address: str) -> bool:
     return bool(re.match(r"^[0-9a-fA-F]{40}$", address))
 
 
-def validate_block_number(block_number: Union[str, int]) -> bool:
+def validate_block_number(block_number: str | int) -> bool:
     """Validate block number.
 
     Args:
@@ -111,7 +110,7 @@ def validate_private_key(private_key: str) -> bool:
     return bool(re.match(r"^[0-9a-fA-F]{64}$", private_key))
 
 
-def validate_amount(amount: Union[str, int, float]) -> bool:
+def validate_amount(amount: str | int | float) -> bool:
     """Validate amount value.
 
     Args:
@@ -129,7 +128,7 @@ def validate_amount(amount: Union[str, int, float]) -> bool:
             else:
                 value = float(amount)
                 return value >= 0
-        elif isinstance(amount, (int, float)):
+        elif isinstance(amount, int | float):
             return amount >= 0
         return False
     except (ValueError, TypeError):

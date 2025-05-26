@@ -3,7 +3,7 @@
 import json
 import logging
 import sys
-from typing import Any, Dict
+from typing import Any
 
 from ..config import get_settings
 
@@ -13,7 +13,7 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as JSON."""
-        log_entry: Dict[str, Any] = {
+        log_entry: dict[str, Any] = {
             "timestamp": self.formatTime(record),
             "level": record.levelname,
             "logger": record.name,

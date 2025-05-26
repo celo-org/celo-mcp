@@ -2,14 +2,13 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
 from .blockchain_data import BlockchainDataService
-from .config import get_settings
 from .utils import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,7 @@ blockchain_service: BlockchainDataService = None
 
 
 @server.list_tools()
-async def list_tools() -> List[Tool]:
+async def list_tools() -> list[Tool]:
     """List available tools."""
     return [
         Tool(
@@ -92,7 +91,7 @@ async def list_tools() -> List[Tool]:
 
 
 @server.call_tool()
-async def call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     global blockchain_service
 

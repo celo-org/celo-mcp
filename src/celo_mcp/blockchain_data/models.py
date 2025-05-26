@@ -1,7 +1,7 @@
 """Data models for blockchain entities."""
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -10,23 +10,23 @@ class Transaction(BaseModel):
     """Transaction model."""
 
     hash: str = Field(..., description="Transaction hash")
-    block_hash: Optional[str] = Field(None, description="Block hash")
-    block_number: Optional[int] = Field(None, description="Block number")
-    transaction_index: Optional[int] = Field(
+    block_hash: str | None = Field(None, description="Block hash")
+    block_number: int | None = Field(None, description="Block number")
+    transaction_index: int | None = Field(
         None, description="Transaction index in block"
     )
     from_address: str = Field(..., alias="from", description="Sender address")
-    to_address: Optional[str] = Field(None, alias="to", description="Recipient address")
+    to_address: str | None = Field(None, alias="to", description="Recipient address")
     value: str = Field(..., description="Value transferred in wei")
     gas: int = Field(..., description="Gas limit")
     gas_price: str = Field(..., description="Gas price in wei")
-    gas_used: Optional[int] = Field(None, description="Gas used")
+    gas_used: int | None = Field(None, description="Gas used")
     nonce: int = Field(..., description="Transaction nonce")
     input_data: str = Field(..., alias="input", description="Transaction input data")
-    status: Optional[int] = Field(
+    status: int | None = Field(
         None, description="Transaction status (1=success, 0=failed)"
     )
-    timestamp: Optional[datetime] = Field(None, description="Transaction timestamp")
+    timestamp: datetime | None = Field(None, description="Transaction timestamp")
 
     model_config = {"populate_by_name": True}
 
@@ -51,11 +51,11 @@ class Block(BaseModel):
     gas_limit: int = Field(..., description="Gas limit")
     gas_used: int = Field(..., description="Gas used")
     timestamp: datetime = Field(..., description="Block timestamp")
-    transactions: List[Union[str, Transaction]] = Field(
+    transactions: list[str | Transaction] = Field(
         default_factory=list,
         description="List of transaction hashes or full transactions",
     )
-    uncles: List[str] = Field(default_factory=list, description="Uncle block hashes")
+    uncles: list[str] = Field(default_factory=list, description="Uncle block hashes")
 
 
 class Account(BaseModel):
@@ -64,9 +64,9 @@ class Account(BaseModel):
     address: str = Field(..., description="Account address")
     balance: str = Field(..., description="Account balance in wei")
     nonce: int = Field(..., description="Account nonce")
-    code: Optional[str] = Field(None, description="Contract code (if contract)")
-    storage_hash: Optional[str] = Field(None, description="Storage hash")
-    code_hash: Optional[str] = Field(None, description="Code hash")
+    code: str | None = Field(None, description="Contract code (if contract)")
+    storage_hash: str | None = Field(None, description="Storage hash")
+    code_hash: str | None = Field(None, description="Code hash")
 
     @property
     def is_contract(self) -> bool:
@@ -78,18 +78,18 @@ class TokenBalance(BaseModel):
     """Token balance model."""
 
     token_address: str = Field(..., description="Token contract address")
-    token_name: Optional[str] = Field(None, description="Token name")
-    token_symbol: Optional[str] = Field(None, description="Token symbol")
-    token_decimals: Optional[int] = Field(None, description="Token decimals")
+    token_name: str | None = Field(None, description="Token name")
+    token_symbol: str | None = Field(None, description="Token symbol")
+    token_decimals: int | None = Field(None, description="Token decimals")
     balance: str = Field(..., description="Token balance (raw)")
-    balance_formatted: Optional[str] = Field(None, description="Formatted balance")
+    balance_formatted: str | None = Field(None, description="Formatted balance")
 
 
 class LogEntry(BaseModel):
     """Log entry model."""
 
     address: str = Field(..., description="Contract address that emitted the log")
-    topics: List[str] = Field(..., description="Log topics")
+    topics: list[str] = Field(..., description="Log topics")
     data: str = Field(..., description="Log data")
     block_number: int = Field(..., description="Block number")
     transaction_hash: str = Field(..., description="Transaction hash")
@@ -105,8 +105,8 @@ class NetworkInfo(BaseModel):
     chain_id: int = Field(..., description="Chain ID")
     network_name: str = Field(..., description="Network name")
     rpc_url: str = Field(..., description="RPC URL")
-    block_explorer_url: Optional[str] = Field(None, description="Block explorer URL")
-    native_currency: Dict[str, Any] = Field(..., description="Native currency info")
+    block_explorer_url: str | None = Field(None, description="Block explorer URL")
+    native_currency: dict[str, Any] = Field(..., description="Native currency info")
     latest_block: int = Field(..., description="Latest block number")
     gas_price: str = Field(..., description="Current gas price")
     is_testnet: bool = Field(default=False, description="Whether this is a testnet")
