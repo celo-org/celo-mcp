@@ -305,12 +305,13 @@ async def list_tools() -> list[Tool]:
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
-    global blockchain_service
+    global blockchain_service, token_service, nft_service, contract_service, transaction_service
 
     try:
+        # Blockchain data operations
         if name == "get_network_status":
             result = await blockchain_service.get_network_status()
-            return [TextContent(type="text", text=str(result))]
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
 
         elif name == "get_block":
             block_identifier = arguments["block_identifier"]
@@ -318,22 +319,110 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             result = await blockchain_service.get_block_details(
                 block_identifier, include_transactions
             )
-            return [TextContent(type="text", text=str(result))]
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
 
         elif name == "get_transaction":
             tx_hash = arguments["tx_hash"]
             result = await blockchain_service.get_transaction_details(tx_hash)
-            return [TextContent(type="text", text=str(result))]
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
 
         elif name == "get_account":
             address = arguments["address"]
             result = await blockchain_service.get_account_details(address)
-            return [TextContent(type="text", text=str(result))]
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
 
         elif name == "get_latest_blocks":
             count = arguments.get("count", 10)
             result = await blockchain_service.get_latest_blocks(count)
-            return [TextContent(type="text", text=str(result))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps([block.dict() for block in result], indent=2),
+                )
+            ]
+
+        # Token operations
+        elif name == "get_token_info":
+            token_address = arguments["token_address"]
+            result = await token_service.get_token_info(token_address)
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+
+        elif name == "get_token_balance":
+            token_address = arguments["token_address"]
+            address = arguments["address"]
+            result = await token_service.get_token_balance(token_address, address)
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+
+        elif name == "get_celo_balances":
+            address = arguments["address"]
+            result = await token_service.get_celo_balances(address)
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps([balance.dict() for balance in result], indent=2),
+                )
+            ]
+
+        # NFT operations
+        elif name == "get_nft_info":
+            contract_address = arguments["contract_address"]
+            token_id = arguments["token_id"]
+            result = await nft_service.get_nft_info(contract_address, token_id)
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+
+        elif name == "get_nft_balance":
+            contract_address = arguments["contract_address"]
+            address = arguments["address"]
+            token_id = arguments.get("token_id")
+            result = await nft_service.get_nft_balance(
+                contract_address, address, token_id
+            )
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+
+        # Contract operations
+        elif name == "call_contract_function":
+            from .contracts.models import FunctionCall
+
+            call = FunctionCall(
+                contract_address=arguments["contract_address"],
+                function_name=arguments["function_name"],
+                function_args=arguments.get("function_args", []),
+                from_address=arguments.get("from_address"),
+            )
+            abi = arguments["abi"]
+            result = await contract_service.call_function(call, abi)
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+
+        elif name == "estimate_contract_gas":
+            from .contracts.models import FunctionCall
+
+            call = FunctionCall(
+                contract_address=arguments["contract_address"],
+                function_name=arguments["function_name"],
+                function_args=arguments.get("function_args", []),
+                from_address=arguments["from_address"],
+                value=arguments.get("value", "0"),
+            )
+            abi = arguments["abi"]
+            result = await contract_service.estimate_gas(call, abi)
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+
+        # Transaction operations
+        elif name == "estimate_transaction":
+            from .transactions.models import TransactionRequest
+
+            tx_request = TransactionRequest(
+                to=arguments["to"],
+                from_address=arguments["from_address"],
+                value=arguments.get("value", "0"),
+                data=arguments.get("data", "0x"),
+            )
+            result = await transaction_service.estimate_transaction(tx_request)
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+
+        elif name == "get_gas_fee_data":
+            result = await transaction_service.get_gas_fee_data()
+            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
 
         else:
             raise ValueError(f"Unknown tool: {name}")
@@ -345,7 +434,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
 async def main():
     """Main server function."""
-    global blockchain_service
+    global blockchain_service, token_service, nft_service, contract_service, transaction_service
 
     # Setup logging
     setup_logging()
@@ -353,7 +442,17 @@ async def main():
     # Initialize blockchain service
     blockchain_service = BlockchainDataService()
 
-    logger.info("Starting Celo MCP Server")
+    # Initialize other services with the blockchain client
+    client = blockchain_service.client
+    token_service = TokenService(client)
+    nft_service = NFTService(client)
+    contract_service = ContractService(client)
+    transaction_service = TransactionService(client)
+
+    logger.info("Starting Celo MCP Server with Stage 2 capabilities")
+    logger.info(
+        "Available services: Blockchain Data, Tokens, NFTs, Contracts, Transactions"
+    )
 
     # Run the server
     async with stdio_server() as (read_stream, write_stream):
