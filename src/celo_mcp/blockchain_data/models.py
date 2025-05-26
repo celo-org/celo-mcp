@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Transaction(BaseModel):
@@ -28,7 +28,7 @@ class Transaction(BaseModel):
     )
     timestamp: datetime | None = Field(None, description="Transaction timestamp")
 
-    model_config = {"populate_by_name": True}
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Block(BaseModel):
