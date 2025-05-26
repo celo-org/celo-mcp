@@ -364,7 +364,7 @@ class NFTService:
             )
 
             # Cache for 1 hour
-            await self.cache.set(cache_key, collection.dict(), ttl=3600)
+            await self.cache.set(cache_key, collection.model_dump(), ttl=3600)
             return collection
 
         except Exception as e:
@@ -443,7 +443,7 @@ class NFTService:
             )
 
             # Cache for 5 minutes
-            await self.cache.set(cache_key, token.dict(), ttl=300)
+            await self.cache.set(cache_key, token.model_dump(), ttl=300)
             return token
 
         except Exception as e:

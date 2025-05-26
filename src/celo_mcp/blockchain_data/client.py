@@ -119,7 +119,7 @@ class CeloClient:
             )
 
             # Cache for 60 seconds
-            await self.cache.set(cache_key, network_info.dict(), ttl=60)
+            await self.cache.set(cache_key, network_info.model_dump(), ttl=60)
             return network_info
 
         except Exception as e:
@@ -195,7 +195,7 @@ class CeloClient:
 
             # Cache for 5 minutes (longer for older blocks)
             ttl = 60 if block_identifier == "latest" else 300
-            await self.cache.set(cache_key, block.dict(), ttl=ttl)
+            await self.cache.set(cache_key, block.model_dump(), ttl=ttl)
             return block
 
         except Exception as e:
@@ -266,7 +266,7 @@ class CeloClient:
             )
 
             # Cache for 5 minutes
-            await self.cache.set(cache_key, transaction.dict(), ttl=300)
+            await self.cache.set(cache_key, transaction.model_dump(), ttl=300)
             return transaction
 
         except Exception as e:
@@ -316,7 +316,7 @@ class CeloClient:
             )
 
             # Cache for 1 minute
-            await self.cache.set(cache_key, account.dict(), ttl=60)
+            await self.cache.set(cache_key, account.model_dump(), ttl=60)
             return account
 
         except Exception as e:

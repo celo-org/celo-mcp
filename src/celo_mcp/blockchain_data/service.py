@@ -27,7 +27,7 @@ class BlockchainDataService:
             network_info = await self.client.get_network_info()
             return {
                 "connected": True,
-                "network": network_info.dict(),
+                "network": network_info.model_dump(),
                 "cache_stats": self.client.cache.stats(),
             }
         except Exception as e:
@@ -42,7 +42,7 @@ class BlockchainDataService:
             block = await self.client.get_block(
                 block_identifier, full_transactions=include_transactions
             )
-            result = block.dict()
+            result = block.model_dump()
             result["transaction_count"] = len(block.transactions)
             result["gas_utilization"] = (block.gas_used / block.gas_limit) * 100
             return result
@@ -54,7 +54,7 @@ class BlockchainDataService:
         """Get detailed transaction information."""
         try:
             transaction = await self.client.get_transaction(tx_hash)
-            result = transaction.dict()
+            result = transaction.model_dump()
 
             # Add additional computed fields
             if transaction.gas_used and transaction.gas:
@@ -78,7 +78,7 @@ class BlockchainDataService:
         """Get detailed account information."""
         try:
             account = await self.client.get_account(address)
-            result = account.dict()
+            result = account.model_dump()
 
             # Add additional computed fields
             result["balance_celo"] = int(account.balance) / 10**18
@@ -106,7 +106,7 @@ class BlockchainDataService:
 
                 try:
                     block = await self.client.get_block(block_num)
-                    block_data = block.dict()
+                    block_data = block.model_dump()
 
                     # Add summary fields
                     block_data["transaction_count"] = len(block.transactions)

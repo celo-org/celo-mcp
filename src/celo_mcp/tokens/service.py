@@ -209,7 +209,7 @@ class TokenService:
             )
 
             # Cache for 1 hour
-            await self.cache.set(cache_key, token_info.dict(), ttl=3600)
+            await self.cache.set(cache_key, token_info.model_dump(), ttl=3600)
             return token_info
 
         except Exception as e:
@@ -263,7 +263,7 @@ class TokenService:
             )
 
             # Cache for 1 minute
-            await self.cache.set(cache_key, token_balance.dict(), ttl=60)
+            await self.cache.set(cache_key, token_balance.model_dump(), ttl=60)
             return token_balance
 
         except Exception as e:
