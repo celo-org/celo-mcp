@@ -212,10 +212,13 @@ wheels = [
 
 [[package]]
 name = "celo-mcp"
-version = "0.1.1"
+version = "0.1.6"
 source = { editable = "." }
 dependencies = [
     { name = "asyncio-throttle" },
+    { name = "eth-abi" },
+    { name = "eth-account" },
+    { name = "eth-utils" },
     { name = "httpx" },
     { name = "mcp" },
     { name = "pydantic" },
@@ -237,6 +240,9 @@ dev = [
 requires-dist = [
     { name = "asyncio-throttle", specifier = ">=1.0.0" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=24.0.0" },
+    { name = "eth-abi", specifier = ">=5.0.0" },
+    { name = "eth-account", specifier = ">=0.11.0" },
+    { name = "eth-utils", specifier = ">=4.0.0" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "mcp", specifier = ">=1.2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from datetime import datetime
 from typing import Any
 
 from mcp.server import Server
@@ -17,6 +18,16 @@ from .transactions import TransactionService
 from .utils import setup_logging
 
 logger = logging.getLogger(__name__)
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder that handles datetime objects."""
+
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
 
 # Initialize server
 server = Server("celo-mcp")
@@ -311,7 +322,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         # Blockchain data operations
         if name == "get_network_status":
             result = await blockchain_service.get_network_status()
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         elif name == "get_block":
             block_identifier = arguments["block_identifier"]
@@ -319,17 +335,32 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             result = await blockchain_service.get_block_details(
                 block_identifier, include_transactions
             )
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         elif name == "get_transaction":
             tx_hash = arguments["tx_hash"]
             result = await blockchain_service.get_transaction_details(tx_hash)
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         elif name == "get_account":
             address = arguments["address"]
             result = await blockchain_service.get_account_details(address)
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         elif name == "get_latest_blocks":
             count = arguments.get("count", 10)
@@ -337,7 +368,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             return [
                 TextContent(
                     type="text",
-                    text=json.dumps([block.dict() for block in result], indent=2),
+                    text=json.dumps(
+                        [block.model_dump() for block in result],
+                        indent=2,
+                        cls=DateTimeEncoder,
+                    ),
                 )
             ]
 
@@ -345,13 +380,23 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         elif name == "get_token_info":
             token_address = arguments["token_address"]
             result = await token_service.get_token_info(token_address)
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         elif name == "get_token_balance":
             token_address = arguments["token_address"]
             address = arguments["address"]
             result = await token_service.get_token_balance(token_address, address)
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         elif name == "get_celo_balances":
             address = arguments["address"]
@@ -359,7 +404,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             return [
                 TextContent(
                     type="text",
-                    text=json.dumps([balance.dict() for balance in result], indent=2),
+                    text=json.dumps(
+                        [balance.model_dump() for balance in result],
+                        indent=2,
+                        cls=DateTimeEncoder,
+                    ),
                 )
             ]
 
@@ -368,7 +417,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             contract_address = arguments["contract_address"]
             token_id = arguments["token_id"]
             result = await nft_service.get_nft_info(contract_address, token_id)
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         elif name == "get_nft_balance":
             contract_address = arguments["contract_address"]
@@ -377,7 +431,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             result = await nft_service.get_nft_balance(
                 contract_address, address, token_id
             )
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         # Contract operations
         elif name == "call_contract_function":
@@ -391,7 +450,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             )
             abi = arguments["abi"]
             result = await contract_service.call_function(call, abi)
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         elif name == "estimate_contract_gas":
             from .contracts.models import FunctionCall
@@ -405,7 +469,12 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             )
             abi = arguments["abi"]
             result = await contract_service.estimate_gas(call, abi)
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         # Transaction operations
         elif name == "estimate_transaction":
@@ -418,11 +487,18 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 data=arguments.get("data", "0x"),
             )
             result = await transaction_service.estimate_transaction(tx_request)
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
 
         elif name == "get_gas_fee_data":
             result = await transaction_service.get_gas_fee_data()
-            return [TextContent(type="text", text=json.dumps(result.dict(), indent=2))]
+            return [
+                TextContent(type="text", text=json.dumps(result.model_dump(), indent=2))
+            ]
 
         else:
             raise ValueError(f"Unknown tool: {name}")
