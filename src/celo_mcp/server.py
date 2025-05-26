@@ -338,7 +338,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             return [
                 TextContent(
                     type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                    text=json.dumps(result, indent=2, cls=DateTimeEncoder),
                 )
             ]
 
@@ -348,7 +348,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             return [
                 TextContent(
                     type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                    text=json.dumps(result, indent=2, cls=DateTimeEncoder),
                 )
             ]
 
@@ -358,7 +358,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             return [
                 TextContent(
                     type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                    text=json.dumps(result, indent=2, cls=DateTimeEncoder),
                 )
             ]
 
@@ -369,7 +369,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        [block.model_dump() for block in result],
+                        result,
                         indent=2,
                         cls=DateTimeEncoder,
                     ),

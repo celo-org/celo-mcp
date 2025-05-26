@@ -343,6 +343,36 @@ class TokenService:
 
         return balances
 
+    async def get_celo_balances(self, account_address: str) -> list[TokenBalance]:
+        """Get CELO and stable token balances for an address.
+
+        Args:
+            account_address: Account address
+
+        Returns:
+            List of token balances including CELO and stable tokens
+        """
+        if not validate_address(account_address):
+            raise ValueError(f"Invalid account address: {account_address}")
+
+        balances = []
+
+        try:
+            # Get CELO native balance
+            celo_balance = await self.get_celo_balance(account_address)
+            balances.append(celo_balance)
+        except Exception as e:
+            logger.warning(f"Failed to get CELO balance: {e}")
+
+        try:
+            # Get stable token balances
+            stable_balances = await self.get_stable_token_balances(account_address)
+            balances.extend(stable_balances)
+        except Exception as e:
+            logger.warning(f"Failed to get stable token balances: {e}")
+
+        return balances
+
     async def get_token_allowance(
         self, token_address: str, owner_address: str, spender_address: str
     ) -> TokenAllowance:

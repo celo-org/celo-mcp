@@ -86,7 +86,8 @@ class TestBlockchainDataTools:
             transactions=sample_block_data["transactions"],
             uncles=sample_block_data["uncles"],
         )
-        blockchain_service.get_block_details = AsyncMock(return_value=block)
+        block_dict = block.model_dump()
+        blockchain_service.get_block_details = AsyncMock(return_value=block_dict)
 
         # Call the tool
         result = await call_tool("get_block", {"block_identifier": 12345678})
@@ -126,7 +127,8 @@ class TestBlockchainDataTools:
             transactions=sample_block_data["transactions"],
             uncles=sample_block_data["uncles"],
         )
-        blockchain_service.get_block_details = AsyncMock(return_value=block)
+        block_dict = block.model_dump()
+        blockchain_service.get_block_details = AsyncMock(return_value=block_dict)
 
         # Call the tool
         result = await call_tool(
@@ -173,7 +175,8 @@ class TestBlockchainDataTools:
             transactions=sample_block_data["transactions"],
             uncles=sample_block_data["uncles"],
         )
-        blockchain_service.get_block_details = AsyncMock(return_value=block)
+        block_dict = block.model_dump()
+        blockchain_service.get_block_details = AsyncMock(return_value=block_dict)
 
         # Call the tool
         result = await call_tool("get_block", {"block_identifier": "latest"})
@@ -205,7 +208,10 @@ class TestBlockchainDataTools:
             status=sample_transaction_data["status"],
             timestamp=datetime.fromtimestamp(sample_transaction_data["timestamp"]),
         )
-        blockchain_service.get_transaction_details = AsyncMock(return_value=transaction)
+        transaction_dict = transaction.model_dump()
+        blockchain_service.get_transaction_details = AsyncMock(
+            return_value=transaction_dict
+        )
 
         # Call the tool
         result = await call_tool(
@@ -237,7 +243,8 @@ class TestBlockchainDataTools:
             storage_hash=sample_account_data["storage_hash"],
             code_hash=sample_account_data["code_hash"],
         )
-        blockchain_service.get_account_details = AsyncMock(return_value=account)
+        account_dict = account.model_dump()
+        blockchain_service.get_account_details = AsyncMock(return_value=account_dict)
 
         # Call the tool
         result = await call_tool(
@@ -285,7 +292,8 @@ class TestBlockchainDataTools:
             )
             for i in range(10)
         ]
-        blockchain_service.get_latest_blocks = AsyncMock(return_value=blocks)
+        blocks_dict = [block.model_dump() for block in blocks]
+        blockchain_service.get_latest_blocks = AsyncMock(return_value=blocks_dict)
 
         # Call the tool
         result = await call_tool("get_latest_blocks", {})
@@ -327,7 +335,8 @@ class TestBlockchainDataTools:
             )
             for i in range(5)
         ]
-        blockchain_service.get_latest_blocks = AsyncMock(return_value=blocks)
+        blocks_dict = [block.model_dump() for block in blocks]
+        blockchain_service.get_latest_blocks = AsyncMock(return_value=blocks_dict)
 
         # Call the tool
         result = await call_tool("get_latest_blocks", {"count": 5})
