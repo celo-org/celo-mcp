@@ -1,652 +1,279 @@
 # Celo MCP Server
 
-A Model Context Protocol (MCP) server that provides AI agents with access to Celo blockchain data and functionality. This server enables LLMs to query blockchain information, retrieve transaction details, check account balances, and more.
-
-## Quick Start
-
-### For Claude Desktop Users
-
-1. **Install the server:**
-
-   ```bash
-   uvx install celo-mcp
-   ```
-
-2. **Add to Claude Desktop config** (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
-
-   ```json
-   {
-     "mcpServers": {
-       "celo-mcp": {
-         "command": "uvx",
-         "args": ["celo-mcp"]
-       }
-     }
-   }
-   ```
-
-3. **Restart Claude Desktop** and start asking about Celo blockchain data!
-
-### For Cursor IDE Users
-
-1. **Install the server:**
-
-   ```bash
-   uvx install celo-mcp
-   ```
-
-2. **Configure in Cursor settings** or add to `~/.cursor/mcp_config.json`:
-
-   ```json
-   {
-     "mcpServers": {
-       "celo-mcp": {
-         "command": "uvx",
-         "args": ["celo-mcp"]
-       }
-     }
-   }
-   ```
-
-3. **Restart Cursor** and use the AI chat to query Celo data!
+A Model Context Protocol (MCP) server for interacting with the Celo blockchain. This server provides comprehensive access to Celo blockchain data, token operations, NFT management, smart contract interactions, and transaction handling.
 
 ## Features
 
-- **Blockchain Data Access**: Query blocks, transactions, and account information
-- **Network Status**: Get real-time network information and connection status
-- **Caching**: Built-in caching for improved performance
-- **Async Support**: Fully asynchronous for high performance
-- **Type Safety**: Built with Pydantic models for data validation
-- **Modular Architecture**: Clean, extensible codebase
+### Stage 1 - Basic Blockchain Data (✅ Complete)
+
+- **Network Status**: Get current network health and connectivity information
+- **Block Information**: Retrieve detailed block data by number, hash, or latest
+- **Transaction Details**: Fetch comprehensive transaction information by hash
+- **Account Information**: Get account balance, nonce, and contract status
+- **Latest Blocks**: Retrieve information about recent blocks
+
+### Stage 2 - Advanced Operations (✅ Complete)
+
+- **Token Operations**: ERC20 token support with Celo stable tokens (cUSD, cEUR, cREAL)
+- **NFT Support**: ERC721 and ERC1155 NFT operations with metadata fetching
+- **Smart Contract Interactions**: Call functions, estimate gas, and manage ABIs
+- **Transaction Management**: Build, estimate, and simulate transactions
+- **Gas Fee Management**: EIP-1559 support with dynamic fee calculation
 
 ## Installation
 
-### Using UVX (Recommended)
+1. Clone the repository:
 
 ```bash
-# Install and run directly with uvx
-uvx celo-mcp
-
-# Or install globally
-uvx install celo-mcp
-```
-
-### Using pip
-
-```bash
-pip install celo-mcp
-```
-
-### From Source
-
-```bash
-git clone https://github.com/viral-sangani/celo-mcp.git
+git clone <repository-url>
 cd celo-mcp
-uv sync
+```
+
+2. Install dependencies:
+
+```bash
+pip install -e .
+```
+
+3. Set up environment variables (optional):
+
+```bash
+export CELO_RPC_URL="https://forno.celo.org"  # Default: Celo mainnet
+export CELO_TESTNET_RPC_URL="https://alfajores-forno.celo-testnet.org"  # Alfajores testnet
 ```
 
 ## Usage
 
-### As an MCP Server
-
-The primary use case is as an MCP server that can be connected to by MCP clients (like Claude Desktop, IDEs, or custom applications).
+### Running the Server
 
 ```bash
-# Run the server
-celo-mcp
-
-# Or with Python module
+# Run the MCP server
 python -m celo_mcp.server
-```
 
-### Configuration
-
-Create a `.env` file in your working directory:
-
-```env
-# Celo Network Configuration
-CELO_RPC_URL=https://forno.celo.org
-CELO_TESTNET_RPC_URL=https://alfajores-forno.celo-testnet.org
-
-# API Configuration
-API_RATE_LIMIT=100
-API_TIMEOUT=30
-
-# Logging
-LOG_LEVEL=INFO
-LOG_FORMAT=json
-
-# Cache Configuration
-CACHE_TTL=300
-CACHE_SIZE=1000
-
-# Development
-DEBUG=false
-ENVIRONMENT=production
+# Or use the CLI entry point
+celo-mcp-server
 ```
 
 ### Available Tools
 
-The server exposes the following tools to MCP clients:
+#### Blockchain Data Operations
 
-#### `get_network_status`
+1. **get_network_status**
 
-Get Celo network status and connection information.
+   - Get current network status and connection information
+   - No parameters required
 
-```json
-{
-  "name": "get_network_status",
-  "arguments": {}
-}
+2. **get_block**
+
+   - Fetch block information by number, hash, or "latest"
+   - Parameters: `block_identifier`, `include_transactions` (optional)
+
+3. **get_transaction**
+
+   - Get transaction details by hash
+   - Parameters: `tx_hash`
+
+4. **get_account**
+
+   - Get account information including balance and nonce
+   - Parameters: `address`
+
+5. **get_latest_blocks**
+   - Get information about recent blocks
+   - Parameters: `count` (optional, default: 10, max: 100)
+
+#### Token Operations
+
+6. **get_token_info**
+
+   - Get detailed token information (name, symbol, decimals, supply)
+   - Parameters: `token_address`
+
+7. **get_token_balance**
+
+   - Get token balance for a specific address
+   - Parameters: `token_address`, `address`
+
+8. **get_celo_balances**
+   - Get CELO and stable token balances for an address
+   - Parameters: `address`
+
+#### NFT Operations
+
+9. **get_nft_info**
+
+   - Get NFT information including metadata and collection details
+   - Parameters: `contract_address`, `token_id`
+
+10. **get_nft_balance**
+    - Get NFT balance for an address (supports ERC721 and ERC1155)
+    - Parameters: `contract_address`, `address`, `token_id` (optional for ERC1155)
+
+#### Smart Contract Operations
+
+11. **call_contract_function**
+
+    - Call a read-only contract function
+    - Parameters: `contract_address`, `function_name`, `abi`, `function_args` (optional), `from_address` (optional)
+
+12. **estimate_contract_gas**
+    - Estimate gas for a contract function call
+    - Parameters: `contract_address`, `function_name`, `abi`, `from_address`, `function_args` (optional), `value` (optional)
+
+#### Transaction Operations
+
+13. **estimate_transaction**
+
+    - Estimate gas and cost for a transaction
+    - Parameters: `to`, `from_address`, `value` (optional), `data` (optional)
+
+14. **get_gas_fee_data**
+    - Get current gas fee data including EIP-1559 fees
+    - No parameters required
+
+## Architecture
+
+The server is built with a modular architecture:
+
+```
+src/celo_mcp/
+├── blockchain_data/     # Core blockchain data access
+│   ├── client.py       # Celo blockchain client
+│   ├── models.py       # Data models
+│   └── service.py      # Blockchain data service
+├── tokens/             # Token operations
+│   ├── models.py       # Token-related models
+│   └── service.py      # Token service (ERC20, Celo stable tokens)
+├── nfts/              # NFT operations
+│   ├── models.py       # NFT-related models
+│   └── service.py      # NFT service (ERC721, ERC1155)
+├── contracts/         # Smart contract interactions
+│   ├── models.py       # Contract-related models
+│   └── service.py      # Contract service
+├── transactions/      # Transaction management
+│   ├── models.py       # Transaction-related models
+│   └── service.py      # Transaction service
+├── server.py          # Main MCP server
+└── utils.py           # Utility functions
 ```
 
-#### `get_block`
+## Key Features
 
-Get block information by number or hash.
+### Token Support
 
-```json
-{
-  "name": "get_block",
-  "arguments": {
-    "block_identifier": "latest",
-    "include_transactions": false
-  }
-}
-```
+- **ERC20 Standard**: Full support for ERC20 tokens
+- **Celo Stable Tokens**: Built-in support for cUSD, cEUR, and cREAL
+- **Balance Queries**: Get token balances with proper decimal formatting
+- **Token Information**: Retrieve name, symbol, decimals, and total supply
 
-#### `get_transaction`
+### NFT Support
 
-Get transaction information by hash.
+- **Multi-Standard**: Support for both ERC721 and ERC1155 standards
+- **Automatic Detection**: Automatically detects NFT standard using ERC165
+- **Metadata Fetching**: Retrieves and parses NFT metadata from URIs
+- **IPFS Support**: Built-in IPFS gateway support for metadata
+- **Collection Information**: Get collection-level information
 
-```json
-{
-  "name": "get_transaction",
-  "arguments": {
-    "tx_hash": "0x..."
-  }
-}
-```
+### Smart Contract Interactions
 
-#### `get_account`
+- **Function Calls**: Call read-only contract functions
+- **Gas Estimation**: Estimate gas costs for contract interactions
+- **ABI Management**: Parse and manage contract ABIs
+- **Event Handling**: Retrieve and decode contract events
+- **Transaction Building**: Build contract transactions
 
-Get account information including balance and nonce.
+### Transaction Management
 
-```json
-{
-  "name": "get_account",
-  "arguments": {
-    "address": "0x..."
-  }
-}
-```
+- **Gas Estimation**: Accurate gas estimation for transactions
+- **EIP-1559 Support**: Modern fee structure with base fee and priority fee
+- **Transaction Simulation**: Simulate transactions before execution
+- **Fee Calculation**: Dynamic fee calculation based on network conditions
 
-#### `get_latest_blocks`
+## Error Handling
 
-Get information about the latest blocks.
+The server includes comprehensive error handling:
 
-```json
-{
-  "name": "get_latest_blocks",
-  "arguments": {
-    "count": 10
-  }
-}
-```
+- Input validation for all parameters
+- Network error handling with retries
+- Graceful degradation for optional features
+- Detailed error messages for debugging
+
+## Caching
+
+Performance optimization through caching:
+
+- Contract ABI caching
+- Token metadata caching
+- NFT metadata caching with IPFS support
+- Network data caching with appropriate TTLs
+
+## Security Considerations
+
+- Read-only operations by default
+- No private key handling in the server
+- Input validation and sanitization
+- Rate limiting considerations for external API calls
 
 ## Development
-
-### Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/viral-sangani/celo-mcp.git
-cd celo-mcp
-
-# Install dependencies
-uv sync
-
-# Install development dependencies
-uv sync --group dev
-```
-
-### Project Structure
-
-```
-celo-mcp/
-├── src/celo_mcp/
-│   ├── blockchain_data/     # Blockchain data access
-│   │   ├── client.py       # Celo blockchain client
-│   │   ├── models.py       # Data models
-│   │   └── service.py      # High-level service
-│   ├── config/             # Configuration management
-│   │   └── settings.py     # Settings with Pydantic
-│   ├── utils/              # Utility functions
-│   │   ├── cache.py        # Caching utilities
-│   │   ├── logging.py      # Logging setup
-│   │   └── validators.py   # Validation functions
-│   └── server.py           # Main MCP server
-├── tests/                  # Test suite
-├── docs/                   # Documentation
-└── examples/               # Usage examples
-```
 
 ### Running Tests
 
 ```bash
-# Run all tests
-uv run pytest
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
 
 # Run with coverage
-uv run pytest --cov=celo_mcp
-
-# Run specific test file
-uv run pytest tests/test_client.py
+pytest --cov=celo_mcp
 ```
 
 ### Code Quality
 
 ```bash
 # Format code
-uv run black src/ tests/
+black src/
+isort src/
 
 # Lint code
-uv run ruff check src/ tests/
-
-# Type checking
-uv run mypy src/
+flake8 src/
+mypy src/
 ```
-
-## Integration with AI Tools
-
-### Claude Desktop Setup
-
-To use the Celo MCP server with Claude Desktop, follow these steps:
-
-#### 1. Install the Server
-
-```bash
-# Install globally with uvx (recommended)
-uvx install celo-mcp
-
-# Or install with pip
-pip install celo-mcp
-```
-
-#### 2. Configure Claude Desktop
-
-1. **Open Claude Desktop Settings**
-
-   - On macOS: `Claude Desktop` → `Settings` → `Developer`
-   - On Windows: Click the settings gear → `Developer`
-
-2. **Edit MCP Settings**
-
-   - Click "Edit Config" to open the MCP configuration file
-   - The file location is typically:
-     - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-     - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-3. **Add Celo MCP Configuration**
-
-```json
-{
-  "mcpServers": {
-    "celo-mcp": {
-      "command": "uvx",
-      "args": ["celo-mcp"],
-      "env": {
-        "CELO_RPC_URL": "https://forno.celo.org",
-        "LOG_LEVEL": "INFO"
-      }
-    }
-  }
-}
-```
-
-#### 3. Restart Claude Desktop
-
-After saving the configuration, restart Claude Desktop to load the MCP server.
-
-#### 4. Verify Integration
-
-In a new conversation with Claude, you should see the Celo MCP tools available. You can test with:
-
-```
-"Can you check the current Celo network status?"
-```
-
-### Cursor IDE Setup
-
-To integrate the Celo MCP server with Cursor IDE:
-
-#### 1. Install the Server
-
-```bash
-# Install globally with uvx
-uvx install celo-mcp
-```
-
-#### 2. Configure Cursor MCP Settings
-
-1. **Open Cursor Settings**
-
-   - Press `Cmd/Ctrl + ,` to open settings
-   - Search for "MCP" or navigate to Extensions → MCP
-
-2. **Add MCP Server Configuration**
-   - Click "Add MCP Server" or edit the MCP configuration
-   - Add the following configuration:
-
-```json
-{
-  "name": "celo-mcp",
-  "command": "uvx",
-  "args": ["celo-mcp"],
-  "env": {
-    "CELO_RPC_URL": "https://forno.celo.org",
-    "LOG_LEVEL": "INFO"
-  }
-}
-```
-
-#### 3. Alternative: Manual Configuration
-
-If Cursor doesn't have a GUI for MCP configuration, you can manually edit the configuration file:
-
-- **Location**: `~/.cursor/mcp_config.json` (create if it doesn't exist)
-
-```json
-{
-  "mcpServers": {
-    "celo-mcp": {
-      "command": "uvx",
-      "args": ["celo-mcp"],
-      "env": {
-        "CELO_RPC_URL": "https://forno.celo.org",
-        "LOG_LEVEL": "INFO"
-      }
-    }
-  }
-}
-```
-
-#### 4. Restart Cursor
-
-Restart Cursor IDE to load the new MCP server configuration.
-
-#### 5. Using in Cursor
-
-Once configured, you can use the Celo MCP tools in Cursor's AI chat:
-
-```
-"Show me the latest Celo blocks and their gas utilization"
-```
-
-### Configuration Options
-
-You can customize the MCP server behavior using environment variables:
-
-```json
-{
-  "mcpServers": {
-    "celo-mcp": {
-      "command": "uvx",
-      "args": ["celo-mcp"],
-      "env": {
-        "CELO_RPC_URL": "https://forno.celo.org",
-        "CELO_TESTNET_RPC_URL": "https://alfajores-forno.celo-testnet.org",
-        "LOG_LEVEL": "INFO",
-        "CACHE_TTL": "300",
-        "API_TIMEOUT": "30",
-        "DEBUG": "false"
-      }
-    }
-  }
-}
-```
-
-### Troubleshooting
-
-#### Common Issues
-
-1. **Server Not Starting**
-
-   - Ensure `uvx` is installed: `pip install uvx`
-   - Verify the server works: `uvx celo-mcp --help`
-   - Check the logs in Claude Desktop/Cursor console
-
-2. **Connection Issues**
-
-   - Verify internet connection
-   - Test RPC URL: `curl https://forno.celo.org`
-   - Try using a different RPC endpoint
-
-3. **Permission Issues**
-   - Ensure uvx has proper permissions
-   - Try installing with `--user` flag: `pip install --user uvx`
-
-#### Debug Mode
-
-Enable debug logging for troubleshooting:
-
-```json
-{
-  "env": {
-    "LOG_LEVEL": "DEBUG",
-    "DEBUG": "true"
-  }
-}
-```
-
-#### Testing the Server
-
-You can test the server independently:
-
-```bash
-# Test basic functionality
-uvx celo-mcp
-
-# Run example script
-uvx --from celo-mcp python -m celo_mcp.examples.basic_usage
-```
-
-### Available Commands
-
-Once integrated, you can ask Claude or Cursor to:
-
-- **Network Status**: "What's the current Celo network status?"
-- **Block Information**: "Show me details for Celo block 12345"
-- **Account Balances**: "Check the balance for address 0x..."
-- **Transaction Details**: "Analyze transaction 0x..."
-- **Recent Activity**: "Show me the latest 10 Celo blocks"
-
-### Other MCP Clients
-
-The Celo MCP server works with any MCP-compatible client. Here are some additional options:
-
-#### Custom Python Client
-
-```python
-import asyncio
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-
-async def main():
-    server_params = StdioServerParameters(
-        command="uvx",
-        args=["celo-mcp"]
-    )
-
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-
-            # List available tools
-            tools = await session.list_tools()
-            print("Available tools:", [tool.name for tool in tools.tools])
-
-            # Call a tool
-            result = await session.call_tool("get_network_status", {})
-            print("Network status:", result.content[0].text)
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-#### VS Code with MCP Extension
-
-If using VS Code with an MCP extension:
-
-1. Install the MCP extension for VS Code
-2. Add the server configuration to your VS Code settings:
-
-```json
-{
-  "mcp.servers": {
-    "celo-mcp": {
-      "command": "uvx",
-      "args": ["celo-mcp"]
-    }
-  }
-}
-```
-
-#### Command Line Testing
-
-You can also test the server directly from the command line:
-
-```bash
-# Start the server (it will wait for MCP protocol messages)
-uvx celo-mcp
-
-# In another terminal, you can send MCP messages
-# (This requires an MCP client implementation)
-```
-
-### Examples
-
-### Custom Client Example
-
-```python
-import asyncio
-from celo_mcp import BlockchainDataService
-
-async def main():
-    async with BlockchainDataService() as service:
-        # Get network status
-        status = await service.get_network_status()
-        print(f"Connected: {status['connected']}")
-
-        # Get latest block
-        block = await service.get_block_details("latest")
-        print(f"Latest block: {block['number']}")
-
-        # Get account balance
-        account = await service.get_account_details("0x...")
-        print(f"Balance: {account['balance_celo']} CELO")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-## API Reference
-
-### BlockchainDataService
-
-The main service class for blockchain operations.
-
-#### Methods
-
-- `get_network_status() -> dict`: Get network status and connection info
-- `get_block_details(block_identifier, include_transactions=False) -> dict`: Get block information
-- `get_transaction_details(tx_hash) -> dict`: Get transaction information
-- `get_account_details(address) -> dict`: Get account information
-- `get_latest_blocks(count=10) -> List[dict]`: Get recent blocks
-
-### CeloClient
-
-Low-level client for direct blockchain interaction.
-
-#### Methods
-
-- `get_network_info() -> NetworkInfo`: Get network information
-- `get_block(block_identifier, full_transactions=False) -> Block`: Get block data
-- `get_transaction(tx_hash) -> Transaction`: Get transaction data
-- `get_account(address) -> Account`: Get account data
-- `is_connected() -> bool`: Check connection status
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch
 3. Make your changes
-4. Add tests for your changes
-5. Ensure all tests pass (`uv run pytest`)
-6. Commit your changes (`git commit -m 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
-
-### Development Setup
-
-```bash
-# Clone the repository
-git clone https://github.com/viral-sangani/celo-mcp.git
-cd celo-mcp
-
-# Install dependencies
-uv sync --all-extras
-
-# Run tests
-uv run pytest
-
-# Run linting
-uv run ruff check .
-uv run black --check .
-
-# Run type checking
-uv run mypy src/
-```
-
-### Release Process
-
-This project uses automated CI/CD for releases. See [docs/CICD.md](docs/CICD.md) for detailed information.
-
-**Quick Release:**
-
-```bash
-# Create a patch release (0.1.0 → 0.1.1)
-python scripts/release.py patch
-
-# Create a minor release (0.1.0 → 0.2.0)
-python scripts/release.py minor
-
-# Create a major release (0.1.0 → 1.0.0)
-python scripts/release.py major
-```
-
-The release script will automatically:
-
-- Update the version in `pyproject.toml`
-- Create a git tag
-- Trigger GitHub Actions to publish to PyPI
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Support
-
-- **Issues**: [GitHub Issues](https://github.com/viral-sangani/celo-mcp/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/viral-sangani/celo-mcp/discussions)
-- **Documentation**: [Project Documentation](https://github.com/viral-sangani/celo-mcp#readme)
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Roadmap
 
-- [ ] Token balance queries
-- [ ] NFT support
-- [ ] Smart contract interaction
-- [ ] Transaction broadcasting
-- [ ] Governance data access
-- [ ] DeFi protocol integration
-- [ ] Event log querying
-- [ ] Multi-network support
+### Stage 3 - Advanced Features (Planned)
+
+- **DeFi Integration**: Support for Celo DeFi protocols
+- **Governance**: Celo governance proposal and voting support
+- **Multi-signature**: Multi-sig wallet operations
+- **Cross-chain**: Bridge operations and cross-chain transfers
+- **Analytics**: Advanced blockchain analytics and insights
+
+## Support
+
+For questions, issues, or contributions, please:
+
+1. Check the existing issues on GitHub
+2. Create a new issue with detailed information
+3. Join the community discussions
+
+## Acknowledgments
+
+- Built on the Model Context Protocol (MCP) framework
+- Uses Web3.py for Ethereum/Celo blockchain interactions
+- Supports the Celo ecosystem and its stable token infrastructure
