@@ -77,8 +77,8 @@ jobs:
       - name: Verify build
         run: |
           ls -la dist/
-          uv pip install dist/*.whl
-          uv run python -c "import celo_mcp; print('Package installed successfully')"
+          uv pip install --system dist/*.whl
+          python -c "import celo_mcp; print('Package installed successfully')"
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
