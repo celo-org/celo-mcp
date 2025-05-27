@@ -17,6 +17,7 @@ dependencies = [
     "eth-abi>=5.0.0",
     "eth-account>=0.11.0",
     "eth-utils>=4.0.0",
+    "crawl4ai>=0.6.0",
 ]
 keywords = ["mcp", "celo", "blockchain", "web3", "ai", "llm"]
 classifiers = [
@@ -72,4 +73,10 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 filterwarnings = [
     "ignore::DeprecationWarning:websockets.legacy.*",
+    "ignore::DeprecationWarning:pydantic._internal._config.*",
+    "ignore::DeprecationWarning:fake_http_header.constants.*",
+    "ignore::DeprecationWarning:importlib.resources._legacy.*",
+    "ignore:Support for class-based.*:DeprecationWarning:pydantic.*",
+    "ignore:read_text is deprecated.*:DeprecationWarning:fake_http_header.*",
+    "ignore:open_text is deprecated.*:DeprecationWarning:importlib.*",
 ]
