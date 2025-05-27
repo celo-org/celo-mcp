@@ -259,7 +259,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ### Stage 3 - Advanced Features (Planned)
 
 - **DeFi Integration**: Support for Celo DeFi protocols
-- **Governance**: Celo governance proposal and voting support
 - **Multi-signature**: Multi-sig wallet operations
 - **Cross-chain**: Bridge operations and cross-chain transfers
 - **Analytics**: Advanced blockchain analytics and insights

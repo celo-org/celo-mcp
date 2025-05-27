@@ -37,7 +37,6 @@ celo-mcp/
 │   ├── nfts/                       # NFT functionality (future)
 │   ├── contracts/                  # Smart contract interaction (future)
 │   ├── transactions/               # Transaction management (future)
-│   └── governance/                 # Governance data (future)
 ├── tests/                          # Test suite
 │   ├── unit/                       # Unit tests
 │   └── integration/                # Integration tests
@@ -323,13 +322,6 @@ The modular architecture supports easy extension:
 - ABI management
 - Event log parsing
 - Function call simulation
-
-### Governance
-
-- Proposal tracking
-- Voting information
-- Validator data
-- Network parameters
 
 ### DeFi Integration
 
