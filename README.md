@@ -2,24 +2,6 @@
 
 A Model Context Protocol (MCP) server for interacting with the Celo blockchain. This server provides comprehensive access to Celo blockchain data, token operations, NFT management, smart contract interactions, and transaction handling.
 
-## Features
-
-### Stage 1 - Basic Blockchain Data (✅ Complete)
-
-- **Network Status**: Get current network health and connectivity information
-- **Block Information**: Retrieve detailed block data by number, hash, or latest
-- **Transaction Details**: Fetch comprehensive transaction information by hash
-- **Account Information**: Get account balance, nonce, and contract status
-- **Latest Blocks**: Retrieve information about recent blocks
-
-### Stage 2 - Advanced Operations (✅ Complete)
-
-- **Token Operations**: ERC20 token support with Celo stable tokens (cUSD, cEUR, cREAL)
-- **NFT Support**: ERC721 and ERC1155 NFT operations with metadata fetching
-- **Smart Contract Interactions**: Call functions, estimate gas, and manage ABIs
-- **Transaction Management**: Build, estimate, and simulate transactions
-- **Gas Fee Management**: EIP-1559 support with dynamic fee calculation
-
 ## Installation
 
 1. Clone the repository:
@@ -253,15 +235,6 @@ mypy src/
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Roadmap
-
-### Stage 3 - Advanced Features (Planned)
-
-- **DeFi Integration**: Support for Celo DeFi protocols
-- **Multi-signature**: Multi-sig wallet operations
-- **Cross-chain**: Bridge operations and cross-chain transfers
-- **Analytics**: Advanced blockchain analytics and insights
 
 ## Support
 
