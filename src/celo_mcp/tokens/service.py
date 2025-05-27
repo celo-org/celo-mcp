@@ -1,14 +1,11 @@
 """Token operations service for Celo blockchain."""
 
 import asyncio
-import json
 import logging
 from decimal import Decimal
 from typing import Any
 
-from eth_abi import decode, encode
 from eth_utils import to_checksum_address
-from web3 import Web3
 from web3.contract import Contract
 
 from ..blockchain_data.client import CeloClient
@@ -18,8 +15,6 @@ from .models import (
     TokenAllowance,
     TokenBalance,
     TokenInfo,
-    TokenMetadata,
-    TokenTransfer,
 )
 
 logger = logging.getLogger(__name__)
@@ -268,7 +263,8 @@ class TokenService:
 
         except Exception as e:
             logger.error(
-                f"Failed to get token balance for {token_address}, {account_address}: {e}"
+                f"Failed to get token balance for {token_address}, "
+                f"{account_address}: {e}"
             )
             raise
 
@@ -288,7 +284,7 @@ class TokenService:
             account = await self.client.get_account(account_address)
 
             return TokenBalance(
-                token_address="0x0000000000000000000000000000000000000000",  # Native token
+                token_address="0x0000000000000000000000000000000000000000",  # Native
                 token_name="Celo",
                 token_symbol="CELO",
                 token_decimals=18,

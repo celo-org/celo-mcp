@@ -1,12 +1,10 @@
 """Smart contract service for Celo blockchain."""
 
-import json
 import logging
 from typing import Any
 
 from eth_abi import decode, encode
 from eth_utils import function_signature_to_4byte_selector, to_hex
-from web3 import Web3
 from web3.contract import Contract
 
 from ..blockchain_data.client import CeloClient

@@ -1,10 +1,11 @@
 """Unit tests for NFT tools."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock
 
-from celo_mcp.nfts.models import NFTToken, NFTBalance, NFTMetadata
+import pytest
+
+from celo_mcp.nfts.models import NFTBalance, NFTMetadata, NFTToken
 from celo_mcp.server import call_tool
 
 

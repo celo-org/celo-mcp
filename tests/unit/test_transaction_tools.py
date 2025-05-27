@@ -1,11 +1,12 @@
 """Unit tests for transaction tools."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock
 
-from celo_mcp.transactions.models import TransactionEstimate, GasFeeData
+import pytest
+
 from celo_mcp.server import call_tool
+from celo_mcp.transactions.models import GasFeeData, TransactionEstimate
 
 
 class TestTransactionTools:
@@ -118,7 +119,10 @@ class TestTransactionTools:
         transaction_service.estimate_transaction = AsyncMock(return_value=tx_estimate)
 
         # Contract function call data (transfer function)
-        contract_data = "0xa9059cbb000000000000000000000000742d35cc6634c0532925a3b8d4c9db96c4b4db450000000000000000000000000000000000000000000000000de0b6b3a7640000"
+        contract_data = (
+            "0xa9059cbb000000000000000000000000742d35cc6634c0532925a3b8d4c9db96c4b4db45"
+            "0000000000000000000000000000000000000000000000000de0b6b3a7640000"
+        )
 
         # Call the tool
         result = await call_tool(
@@ -362,7 +366,7 @@ class TestTransactionTools:
         result = await call_tool(
             "estimate_transaction",
             {
-                "to": "0x0000000000000000000000000000000000000000",  # Contract deployment
+                "to": "0x0000000000000000000000000000000000000000",  # Contract deploy
                 "from_address": sample_account_data["address"],
                 "value": "0",
                 "data": deployment_data,

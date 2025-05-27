@@ -1,7 +1,6 @@
 """NFT operations service for Celo blockchain."""
 
 import asyncio
-import json
 import logging
 from typing import Any
 
@@ -12,12 +11,9 @@ from web3.contract import Contract
 from ..blockchain_data.client import CeloClient
 from ..utils import CacheManager, validate_address
 from .models import (
-    NFTApproval,
-    NFTBalance,
     NFTCollection,
     NFTMetadata,
     NFTToken,
-    NFTTransfer,
 )
 
 logger = logging.getLogger(__name__)

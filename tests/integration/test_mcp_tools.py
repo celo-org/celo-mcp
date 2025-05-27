@@ -1,16 +1,17 @@
 """Integration tests for all MCP tools in the Celo MCP server."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 from mcp.types import TextContent
 
-from celo_mcp.server import call_tool
-from celo_mcp.blockchain_data.models import NetworkInfo, Block, Transaction, Account
-from celo_mcp.tokens.models import TokenInfo, TokenBalance, CeloStableTokens
-from celo_mcp.nfts.models import NFTToken, NFTBalance
+from celo_mcp.blockchain_data.models import Account, Block, NetworkInfo, Transaction
 from celo_mcp.contracts.models import FunctionResult, GasEstimate
-from celo_mcp.transactions.models import TransactionEstimate, GasFeeData
+from celo_mcp.nfts.models import NFTBalance, NFTToken
+from celo_mcp.server import call_tool
+from celo_mcp.tokens.models import TokenBalance, TokenInfo
+from celo_mcp.transactions.models import GasFeeData, TransactionEstimate
 
 
 class TestBlockchainDataTools:

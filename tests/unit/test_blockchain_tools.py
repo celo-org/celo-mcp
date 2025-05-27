@@ -1,11 +1,12 @@
 """Unit tests for blockchain data tools."""
 
 import json
-import pytest
-from unittest.mock import AsyncMock, patch
 from datetime import datetime
+from unittest.mock import AsyncMock
 
-from celo_mcp.blockchain_data.models import NetworkInfo, Block, Transaction, Account
+import pytest
+
+from celo_mcp.blockchain_data.models import Account, Block, NetworkInfo, Transaction
 from celo_mcp.server import call_tool
 
 

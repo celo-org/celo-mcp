@@ -1,8 +1,5 @@
 """Token-related data models."""
 
-from decimal import Decimal
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 
@@ -57,14 +54,14 @@ class TokenAllowance(BaseModel):
 class CeloStableTokens(BaseModel):
     """Celo stable token addresses."""
 
-    cUSD: str = "0x765DE816845861e75A25fCA122bb6898B8B1282a"  # Mainnet
-    cEUR: str = "0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73"  # Mainnet
-    cREAL: str = "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787"  # Mainnet
+    cUSD: str = "0x765DE816845861e75A25fCA122bb6898B8B1282a"  # Mainnet  # noqa: N815
+    cEUR: str = "0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73"  # Mainnet  # noqa: N815
+    cREAL: str = "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787"  # Mainnet  # noqa: N815
 
     # Testnet addresses
-    cUSD_testnet: str = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"
-    cEUR_testnet: str = "0x10c892A6EC43a53E45D0B916B4b7D383B1b78C0F"
-    cREAL_testnet: str = "0xE4D517785D091D3c54818832dB6094bcc2744545"
+    cUSD_testnet: str = "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1"  # noqa: N815
+    cEUR_testnet: str = "0x10c892A6EC43a53E45D0B916B4b7D383B1b78C0F"  # noqa: N815
+    cREAL_testnet: str = "0xE4D517785D091D3c54818832dB6094bcc2744545"  # noqa: N815
 
 
 class TokenMetadata(BaseModel):

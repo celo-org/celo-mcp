@@ -1,11 +1,12 @@
 """Unit tests for token tools."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock
 
-from celo_mcp.tokens.models import TokenInfo, TokenBalance
+import pytest
+
 from celo_mcp.server import call_tool
+from celo_mcp.tokens.models import TokenBalance, TokenInfo
 
 
 class TestTokenTools:

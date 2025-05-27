@@ -1,9 +1,8 @@
 """Pytest configuration and fixtures for Celo MCP tests."""
 
-import asyncio
 import json
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Any, Dict, List
 
 import pytest
 from mcp.types import TextContent
@@ -12,9 +11,9 @@ from web3 import Web3
 from celo_mcp.blockchain_data import BlockchainDataService
 from celo_mcp.contracts import ContractService
 from celo_mcp.nfts import NFTService
+from celo_mcp.server import server
 from celo_mcp.tokens import TokenService
 from celo_mcp.transactions import TransactionService
-from celo_mcp.server import server
 
 
 @pytest.fixture
@@ -83,14 +82,24 @@ def sample_block_data():
     """Sample block data for testing."""
     return {
         "number": 12345678,
-        "hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-        "parent_hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        "hash": ("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"),
+        "parent_hash": (
+            "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        ),
         "nonce": "0x0000000000000000",
-        "sha3_uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+        "sha3_uncles": (
+            "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+        ),
         "logs_bloom": "0x" + "0" * 512,
-        "transactions_root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
-        "state_root": "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544",
-        "receipts_root": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+        "transactions_root": (
+            "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
+        ),
+        "state_root": (
+            "0xd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544"
+        ),
+        "receipts_root": (
+            "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
+        ),
         "miner": "0x0000000000000000000000000000000000000000",
         "difficulty": "0x0",
         "total_difficulty": "0x0",
@@ -108,8 +117,10 @@ def sample_block_data():
 def sample_transaction_data():
     """Sample transaction data for testing."""
     return {
-        "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-        "block_hash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        "hash": ("0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"),
+        "block_hash": (
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        ),
         "block_number": 12345678,
         "transaction_index": 0,
         "from": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4Db45",
@@ -224,7 +235,7 @@ async def mock_server_with_services(
 def mock_text_content():
     """Helper to create TextContent responses."""
 
-    def _create_content(data: Any) -> List[TextContent]:
+    def _create_content(data: Any) -> list[TextContent]:
         return [TextContent(type="text", text=json.dumps(data, indent=2))]
 
     return _create_content

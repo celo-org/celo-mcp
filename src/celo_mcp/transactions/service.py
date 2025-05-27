@@ -5,8 +5,7 @@ from typing import Any
 
 from eth_account import Account
 from eth_utils import to_hex
-from web3 import Web3
-from web3.types import TxParams, TxReceipt
+from web3.types import TxParams
 
 from ..blockchain_data.client import CeloClient
 from .models import (
@@ -328,7 +327,7 @@ class TransactionService:
                     gas_used=gas_used,
                     return_value=to_hex(result) if result else None,
                     error=None,
-                    state_changes=[],  # Would need additional tools to track state changes
+                    state_changes=[],  # Would need additional tools to track state
                     events=[],  # Would need to decode logs to get events
                 )
 

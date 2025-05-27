@@ -1,8 +1,9 @@
 """Unit tests for contract tools."""
 
 import json
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from celo_mcp.contracts.models import FunctionResult, GasEstimate
 from celo_mcp.server import call_tool

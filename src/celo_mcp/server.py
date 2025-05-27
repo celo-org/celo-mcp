@@ -46,22 +46,36 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="get_network_status",
-            description="Retrieve the current status and connection information of the Celo network, including network health and connectivity details.",
+            description=(
+                "Retrieve the current status and connection information of the "
+                "Celo network, including network health and connectivity details."
+            ),
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
         Tool(
             name="get_block",
-            description="Fetch detailed information about a specific block on the Celo blockchain using its number or hash. Optionally include full transaction details within the block.",
+            description=(
+                "Fetch detailed information about a specific block on the Celo "
+                "blockchain using its number or hash. Optionally include full "
+                "transaction details within the block."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "block_identifier": {
                         "type": ["string", "integer"],
-                        "description": "The unique identifier for the block, which can be a block number, hash, or the keyword 'latest' to get the most recent block.",
+                        "description": (
+                            "The unique identifier for the block, which can be a "
+                            "block number, hash, or the keyword 'latest' to get "
+                            "the most recent block."
+                        ),
                     },
                     "include_transactions": {
                         "type": "boolean",
-                        "description": "Flag to determine whether to include detailed transaction information for each transaction in the block.",
+                        "description": (
+                            "Flag to determine whether to include detailed "
+                            "transaction information for each transaction in the block."
+                        ),
                         "default": False,
                     },
                 },
@@ -70,13 +84,19 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_transaction",
-            description="Obtain detailed information about a specific transaction on the Celo blockchain using its transaction hash.",
+            description=(
+                "Obtain detailed information about a specific transaction on the "
+                "Celo blockchain using its transaction hash."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "tx_hash": {
                         "type": "string",
-                        "description": "The unique hash of the transaction to retrieve details for.",
+                        "description": (
+                            "The unique hash of the transaction to retrieve "
+                            "details for."
+                        ),
                     }
                 },
                 "required": ["tx_hash"],
@@ -84,13 +104,19 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_account",
-            description="Retrieve account details on the Celo blockchain, including balance and nonce, using the account's address.",
+            description=(
+                "Retrieve account details on the Celo blockchain, including "
+                "balance and nonce, using the account's address."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "address": {
                         "type": "string",
-                        "description": "The blockchain address of the account to retrieve information for.",
+                        "description": (
+                            "The blockchain address of the account to retrieve "
+                            "information for."
+                        ),
                     }
                 },
                 "required": ["address"],
@@ -98,13 +124,20 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_latest_blocks",
-            description="Get information about the most recent blocks on the Celo blockchain, with the ability to specify the number of blocks to retrieve.",
+            description=(
+                "Get information about the most recent blocks on the Celo "
+                "blockchain, with the ability to specify the number of blocks "
+                "to retrieve."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "count": {
                         "type": "integer",
-                        "description": "The number of latest blocks to retrieve information for, with a default of 10 and a maximum of 100.",
+                        "description": (
+                            "The number of latest blocks to retrieve information for, "
+                            "with a default of 10 and a maximum of 100."
+                        ),
                         "default": 10,
                         "minimum": 1,
                         "maximum": 100,
@@ -116,7 +149,10 @@ async def list_tools() -> list[Tool]:
         # Token operations
         Tool(
             name="get_token_info",
-            description="Get detailed information about a token including name, symbol, decimals, and total supply.",
+            description=(
+                "Get detailed information about a token including name, symbol, "
+                "decimals, and total supply."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -163,7 +199,10 @@ async def list_tools() -> list[Tool]:
         # NFT operations
         Tool(
             name="get_nft_info",
-            description="Get information about an NFT including metadata and collection details.",
+            description=(
+                "Get information about an NFT including metadata and collection "
+                "details."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -316,7 +355,8 @@ async def list_tools() -> list[Tool]:
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
-    global blockchain_service, token_service, nft_service, contract_service, transaction_service
+    global blockchain_service, token_service, nft_service, contract_service
+    global transaction_service
 
     try:
         # Blockchain data operations
@@ -510,7 +550,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
 async def main():
     """Main server function."""
-    global blockchain_service, token_service, nft_service, contract_service, transaction_service
+    global blockchain_service, token_service, nft_service, contract_service
+    global transaction_service
 
     # Setup logging
     setup_logging()
