@@ -20,6 +20,7 @@ dependencies = [
     "crawl4ai>=0.6.0",
     "requests>=2.31.0",
     "urllib3>=2.0.0",
+    "PyYAML>=6.0.0",
 ]
 keywords = ["mcp", "celo", "blockchain", "web3", "ai", "llm"]
 classifiers = [

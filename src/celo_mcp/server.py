@@ -6,12 +6,13 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from mcp.server import Server
+from mcp.server import Server, FastMCP
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 from .blockchain_data import BlockchainDataService
 from .contracts import ContractService
+from .governance import GovernanceService
 from .nfts import NFTService
 from .tokens import TokenService
 from .transactions import TransactionService
@@ -38,6 +39,7 @@ token_service: TokenService = None
 nft_service: NFTService = None
 contract_service: ContractService = None
 transaction_service: TransactionService = None
+governance_service: GovernanceService = None
 
 
 @server.list_tools()
@@ -349,6 +351,72 @@ async def list_tools() -> list[Tool]:
             description="Get current gas fee data including EIP-1559 fees.",
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
+        # Governance operations
+        Tool(
+            name="get_governance_proposals",
+            description=(
+                "Get Celo governance proposals with celo-mondo style formatting, "
+                "sorting, and comprehensive pagination support. Supports both "
+                "page-based and offset-based pagination with rich metadata. "
+                "OPTIMIZED for MCP timeout prevention - uses ultra-fast path by default."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "include_inactive": {
+                        "type": "boolean",
+                        "description": "Whether to include inactive/expired proposals",
+                        "default": True,
+                    },
+                    "include_metadata": {
+                        "type": "boolean",
+                        "description": "Whether to fetch metadata from GitHub repository (slower - only use when needed)",
+                        "default": False,
+                    },
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number (1-based). If provided, overrides offset/limit",
+                        "minimum": 1,
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of proposals per page",
+                        "default": 10,
+                        "minimum": 1,
+                        "maximum": 50,
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of proposals to skip (alternative to page-based pagination)",
+                        "minimum": 0,
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of proposals to return (alternative to page_size)",
+                        "minimum": 1,
+                        "maximum": 100,
+                    },
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="get_proposal_details",
+            description=(
+                "Get detailed information about a specific governance proposal "
+                "including its content and voting history."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "proposal_id": {
+                        "type": "integer",
+                        "description": "The governance proposal ID",
+                    }
+                },
+                "required": ["proposal_id"],
+            },
+        ),
     ]
 
 
@@ -356,7 +424,7 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     global blockchain_service, token_service, nft_service, contract_service
-    global transaction_service
+    global transaction_service, governance_service
 
     try:
         # Blockchain data operations
@@ -540,6 +608,39 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 TextContent(type="text", text=json.dumps(result.model_dump(), indent=2))
             ]
 
+        # Governance operations
+        elif name == "get_governance_proposals":
+            include_inactive = arguments.get("include_inactive", True)
+            include_metadata = arguments.get("include_metadata", False)
+            page = arguments.get("page")
+            page_size = arguments.get("page_size", 10)
+            offset = arguments.get("offset")
+            limit = arguments.get("limit")
+            result = await governance_service.get_governance_proposals(
+                include_inactive=include_inactive,
+                include_metadata=include_metadata,
+                page=page,
+                page_size=page_size,
+                offset=offset,
+                limit=limit,
+            )
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
+
+        elif name == "get_proposal_details":
+            proposal_id = arguments["proposal_id"]
+            result = await governance_service.get_proposal_details(proposal_id)
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
+
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -551,7 +652,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 async def main():
     """Main server function."""
     global blockchain_service, token_service, nft_service, contract_service
-    global transaction_service
+    global transaction_service, governance_service
 
     # Setup logging
     setup_logging()
@@ -565,10 +666,11 @@ async def main():
     nft_service = NFTService(client)
     contract_service = ContractService(client)
     transaction_service = TransactionService(client)
+    governance_service = GovernanceService(client)
 
     logger.info("Starting Celo MCP Server with Stage 2 capabilities")
     logger.info(
-        "Available services: Blockchain Data, Tokens, NFTs, Contracts, Transactions"
+        "Available services: Blockchain Data, Tokens, NFTs, Contracts, Transactions, Governance"
     )
 
     # Run the server
