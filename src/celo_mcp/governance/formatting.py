@@ -245,6 +245,22 @@ def format_proposal_summary(proposal_data: MergedProposalData) -> Dict[str, any]
         ),
         "is_approved": proposal.is_approved if proposal else None,
         "num_transactions": proposal.num_transactions if proposal else None,
+        # GitHub metadata fields from YAML frontmatter
+        "metadata": (
+            {
+                "cgp": metadata.cgp if metadata else None,
+                "title": metadata.title if metadata else None,
+                "author": metadata.author if metadata else None,
+                "status": metadata.stage.name if metadata else None,
+                "discussions_to": metadata.url if metadata else None,
+                "governance_proposal_id": metadata.id if metadata else None,
+                "date_executed": metadata.timestamp_executed if metadata else None,
+                "cgp_url": metadata.cgp_url if metadata else None,
+                "cgp_url_raw": metadata.cgp_url_raw if metadata else None,
+            }
+            if metadata
+            else None
+        ),
     }
 
 

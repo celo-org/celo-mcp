@@ -13,6 +13,7 @@ from web3 import Web3
 from web3.types import Address
 
 from ..config.contracts import get_governance_address
+from ..utils.multicall import MulticallService
 from .models import (
     ACTIVE_PROPOSAL_STAGES,
     APPROVAL_STAGE_EXPIRY_TIME,
@@ -87,6 +88,55 @@ async def fetch_cgp_content(cgp_number: int) -> Tuple[Optional[Dict], Optional[s
         return None, None
 
 
+async def fetch_cgp_header_only(cgp_number: int) -> Tuple[Optional[Dict], None]:
+    """Fetch only the YAML frontmatter header from CGP file for better performance."""
+    raw_url = f"https://raw.githubusercontent.com/celo-org/governance/main/CGPs/cgp-{cgp_number:04d}.md"
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=5.0
+        ) as client:  # Shorter timeout for headers only
+            # Use HEAD request first to check if file exists
+            head_response = await client.head(raw_url)
+            if head_response.status_code == 404:
+                logger.debug(f"CGP file not found: {raw_url}")
+                return None, None
+
+            # Fetch only the beginning of the file (first 2KB should be enough for headers)
+            headers = {"Range": "bytes=0-2047"}  # First 2KB
+            response = await client.get(raw_url, headers=headers)
+
+            if response.status_code not in [200, 206]:  # 206 = Partial Content
+                logger.debug(f"Failed to fetch CGP header: {response.status_code}")
+                return None, None
+
+            content = response.text
+
+        # Extract YAML frontmatter only
+        frontmatter_match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
+        if not frontmatter_match:
+            logger.debug(f"No YAML frontmatter found in CGP {cgp_number}")
+            return None, None
+
+        yaml_content = frontmatter_match.group(1)
+
+        try:
+            metadata_dict = yaml.safe_load(yaml_content)
+            return (
+                metadata_dict,
+                None,
+            )  # Return None for content since we only fetched header
+        except Exception as e:
+            logger.warning(
+                f"Failed to parse YAML frontmatter for CGP {cgp_number}: {e}"
+            )
+            return None, None
+
+    except Exception as e:
+        logger.debug(f"Failed to fetch CGP header from {raw_url}: {e}")
+        return None, None
+
+
 class GovernanceService:
     """Service for fetching Celo governance data."""
 
@@ -94,6 +144,8 @@ class GovernanceService:
         """Initialize the service with a CeloClient."""
         self.client = client
         self._governance_abi = self._load_governance_abi()
+        self._multicall_service = MulticallService(client)
+        self._use_multicall = True  # Flag to enable/disable multicall
 
     def _load_governance_abi(self) -> List[Dict]:
         """Load the governance contract ABI."""
@@ -201,13 +253,29 @@ class GovernanceService:
 
             # ULTRA-FAST PATH: Skip metadata by default and fetch only needed proposals
             if not include_metadata:
-                # Use minimal data fetching for maximum speed and rate limit protection
+                # Use multicall for maximum speed if available, otherwise fall back to minimal
                 buffer_size = min(
                     50, calculated_limit + 20
-                )  # Smaller buffer to reduce load
-                limited_proposals = await self._fetch_governance_proposals_minimal(
-                    limit=calculated_offset + calculated_limit + buffer_size
-                )
+                )  # Larger buffer since multicall is faster
+
+                if self._use_multicall:
+                    try:
+                        limited_proposals = (
+                            await self._fetch_governance_proposals_multicall(
+                                limit=calculated_offset + calculated_limit + buffer_size
+                            )
+                        )
+                    except Exception as e:
+                        logger.warning(f"Multicall failed, using minimal method: {e}")
+                        limited_proposals = (
+                            await self._fetch_governance_proposals_minimal(
+                                limit=calculated_offset + calculated_limit + buffer_size
+                            )
+                        )
+                else:
+                    limited_proposals = await self._fetch_governance_proposals_minimal(
+                        limit=calculated_offset + calculated_limit + buffer_size
+                    )
 
                 # Quick filtering for inactive proposals
                 if not include_inactive:
@@ -292,13 +360,21 @@ class GovernanceService:
                 end_time = asyncio.get_event_loop().time()
                 execution_time = round(end_time - start_time, 2)
 
+                # Determine sorting description based on method used
+                sorting_desc = (
+                    "multicall-ultra-fast (latest first, single RPC call)"
+                    if self._use_multicall
+                    and "Multicall failed" not in str(limited_proposals)
+                    else "minimal-fast (latest first, rate-limit protected)"
+                )
+
                 return GovernanceProposalsResponse(
                     proposals=formatted_proposals,
                     total_count=len(formatted_proposals),
                     include_metadata=include_metadata,
                     include_inactive=include_inactive,
                     execution_time_seconds=execution_time,
-                    sorting="minimal-fast (latest first, rate-limit protected)",
+                    sorting=sorting_desc,
                     pagination=pagination_info,
                 )
 
@@ -673,12 +749,101 @@ class GovernanceService:
         return proposals
 
     async def _fetch_governance_metadata(self) -> List[ProposalMetadata]:
-        """Fetch proposal metadata from GitHub repository."""
-        # For now, return empty list - in full implementation this would
-        # fetch from https://api.github.com/repos/celo-org/governance/contents/CGPs
-        # and parse the YAML frontmatter from each CGP file
-        logger.info("Metadata fetching not yet implemented - would fetch from GitHub")
-        return []
+        """Fetch proposal metadata from GitHub repository in parallel."""
+        try:
+            # First, get all proposal URLs to extract CGP numbers
+            all_proposals = await self._fetch_governance_proposals_minimal(
+                limit=100
+            )  # Get more to find CGPs
+
+            # Extract CGP numbers from URLs
+            cgp_numbers = []
+            cgp_to_proposal_map = {}
+
+            for proposal in all_proposals:
+                if proposal.url:
+                    cgp_number = extract_cgp_from_url(proposal.url)
+                    if cgp_number:
+                        cgp_numbers.append(cgp_number)
+                        cgp_to_proposal_map[cgp_number] = proposal.id
+
+            if not cgp_numbers:
+                logger.info("No CGP numbers found in proposal URLs")
+                return []
+
+            # Fetch metadata for all CGPs in parallel
+            logger.info(f"Fetching metadata for {len(cgp_numbers)} CGPs in parallel")
+
+            async def fetch_cgp_metadata(cgp_number: int) -> Optional[ProposalMetadata]:
+                try:
+                    metadata_dict, _ = await fetch_cgp_header_only(cgp_number)
+                    if not metadata_dict:
+                        return None
+
+                    # Map status string to ProposalStage
+                    status = metadata_dict.get("status", "UNKNOWN").upper()
+                    stage = ProposalStage.NONE  # Default fallback
+                    if status == "EXECUTED":
+                        stage = ProposalStage.EXECUTED
+                    elif status == "PROPOSED":
+                        stage = ProposalStage.QUEUED
+                    elif status == "DRAFT":
+                        stage = ProposalStage.NONE
+                    elif status == "REJECTED":
+                        stage = ProposalStage.REJECTED
+                    elif status == "WITHDRAWN":
+                        stage = ProposalStage.WITHDRAWN
+                    elif status == "EXPIRED":
+                        stage = ProposalStage.EXPIRATION
+
+                    return ProposalMetadata(
+                        cgp=metadata_dict.get("cgp", cgp_number),
+                        cgp_url=f"https://github.com/celo-org/governance/blob/main/CGPs/cgp-{cgp_number:04d}.md",
+                        cgp_url_raw=f"https://raw.githubusercontent.com/celo-org/governance/main/CGPs/cgp-{cgp_number:04d}.md",
+                        title=metadata_dict.get("title", ""),
+                        author=metadata_dict.get("author", ""),
+                        stage=stage,
+                        id=metadata_dict.get("governance-proposal-id")
+                        or cgp_to_proposal_map.get(cgp_number),
+                        url=metadata_dict.get("discussions-to"),
+                        timestamp=None,  # We'll use on-chain timestamp
+                        timestamp_executed=metadata_dict.get("date-executed"),
+                        votes=None,  # We'll use on-chain votes
+                    )
+
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to fetch metadata for CGP {cgp_number}: {e}"
+                    )
+                    return None
+
+            # Execute all metadata fetches in parallel with controlled concurrency
+            semaphore = asyncio.Semaphore(10)  # Max 10 concurrent GitHub requests
+
+            async def fetch_with_semaphore(cgp_number: int):
+                async with semaphore:
+                    return await fetch_cgp_metadata(cgp_number)
+
+            metadata_tasks = [fetch_with_semaphore(cgp_num) for cgp_num in cgp_numbers]
+            metadata_results = await asyncio.gather(
+                *metadata_tasks, return_exceptions=True
+            )
+
+            # Filter out None results and exceptions
+            metadata_list = [
+                metadata
+                for metadata in metadata_results
+                if metadata is not None and not isinstance(metadata, Exception)
+            ]
+
+            logger.info(
+                f"Successfully fetched metadata for {len(metadata_list)}/{len(cgp_numbers)} CGPs"
+            )
+            return metadata_list
+
+        except Exception as e:
+            logger.error(f"Error fetching governance metadata: {e}")
+            return []
 
     async def _fetch_executed_proposal_ids(self) -> List[int]:
         """Fetch executed proposal IDs from blockchain events."""
@@ -1055,3 +1220,119 @@ class GovernanceService:
         ]
 
         return proposals
+
+    async def _fetch_governance_proposals_multicall(
+        self, limit: int = 15
+    ) -> List[Proposal]:
+        """Fetch proposals using Multicall3 for maximum speed (sub-second response)."""
+        governance_address = get_governance_address()
+
+        # Create contract instance using Web3 directly
+        contract = self.client.w3.eth.contract(
+            address=governance_address, abi=self._governance_abi
+        )
+
+        # Step 1: Get proposal IDs (still need initial calls - can't multicall these)
+        try:
+            loop = asyncio.get_event_loop()
+            # Parallelize the initial contract calls
+            queued_result, dequeued_result = await asyncio.gather(
+                loop.run_in_executor(None, contract.functions.getQueue().call),
+                loop.run_in_executor(None, contract.functions.getDequeue().call),
+            )
+        except Exception as e:
+            logger.error(f"Error calling governance contract: {e}")
+            raise
+
+        queued_ids, queued_upvotes = queued_result
+        dequeued_ids = [id for id in dequeued_result if id != 0]
+
+        # Combine all proposal IDs with upvotes
+        all_ids_and_upvotes = []
+        for i, id in enumerate(queued_ids):
+            if id != 0:
+                all_ids_and_upvotes.append(
+                    (id, queued_upvotes[i] if i < len(queued_upvotes) else 0)
+                )
+
+        for id in dequeued_ids:
+            all_ids_and_upvotes.append((id, 0))
+
+        if not all_ids_and_upvotes:
+            return []
+
+        # Sort by proposal ID in descending order to get latest proposals first
+        all_ids_and_upvotes.sort(key=lambda x: x[0], reverse=True)
+
+        # Apply strict limit
+        limited_ids_and_upvotes = all_ids_and_upvotes[
+            : min(limit, 50)
+        ]  # Allow more since multicall is fast
+
+        # Step 2: Use multicall to fetch all proposal details in ONE RPC call
+        proposal_ids = [proposal_id for proposal_id, _ in limited_ids_and_upvotes]
+        upvotes_map = {
+            proposal_id: upvotes for proposal_id, upvotes in limited_ids_and_upvotes
+        }
+
+        try:
+            # This is the magic: ALL contract calls in one RPC request!
+            multicall_results = await self._multicall_service.batch_governance_calls(
+                contract, proposal_ids
+            )
+
+            proposals = []
+            for result in multicall_results:
+                if not result["success"]:
+                    logger.warning(
+                        f"Failed to fetch complete data for proposal {result['proposal_id']}"
+                    )
+                    continue
+
+                proposal_id = result["proposal_id"]
+                proposal_data = result["proposal_data"]
+                stage = result["stage"]
+                vote_totals = result["vote_totals"]
+
+                # Parse the results
+                (
+                    proposer,
+                    deposit,
+                    timestamp_sec,
+                    num_transactions,
+                    url,
+                    network_weight,
+                    is_approved,
+                ) = proposal_data
+
+                yes_votes, no_votes, abstain_votes = vote_totals
+
+                timestamp = timestamp_sec * 1000  # Convert to milliseconds
+                expiry_timestamp = self._get_expiry_timestamp(
+                    ProposalStage(stage), timestamp
+                )
+
+                proposal = Proposal(
+                    id=proposal_id,
+                    stage=ProposalStage(stage),
+                    timestamp=timestamp,
+                    expiry_timestamp=expiry_timestamp,
+                    url=url,
+                    proposer=proposer,
+                    deposit=deposit,
+                    num_transactions=num_transactions,
+                    network_weight=network_weight,
+                    is_approved=is_approved,
+                    upvotes=upvotes_map.get(proposal_id, 0),
+                    votes=VoteAmounts(
+                        yes=yes_votes, no=no_votes, abstain=abstain_votes
+                    ),
+                )
+                proposals.append(proposal)
+
+            return proposals
+
+        except Exception as e:
+            logger.error(f"Multicall failed, falling back to minimal method: {e}")
+            # Fallback to minimal method if multicall fails
+            return await self._fetch_governance_proposals_minimal(limit)

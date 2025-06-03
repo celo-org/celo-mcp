@@ -354,12 +354,7 @@ async def list_tools() -> list[Tool]:
         # Governance operations
         Tool(
             name="get_governance_proposals",
-            description=(
-                "Get Celo governance proposals with celo-mondo style formatting, "
-                "sorting, and comprehensive pagination support. Supports both "
-                "page-based and offset-based pagination with rich metadata. "
-                "OPTIMIZED for MCP timeout prevention - uses ultra-fast path by default."
-            ),
+            description="Get Celo governance proposals with pagination support.",
             inputSchema={
                 "type": "object",
                 "properties": {
