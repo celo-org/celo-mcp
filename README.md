@@ -1,6 +1,6 @@
 # Celo MCP Server
 
-A Model Context Protocol (MCP) server for interacting with the Celo blockchain. This server provides comprehensive access to Celo blockchain data, token operations, NFT management, smart contract interactions, and transaction handling.
+A Model Context Protocol (MCP) server for interacting with the Celo blockchain. This server provides comprehensive access to Celo blockchain data, token operations, NFT management, smart contract interactions, transaction handling, and governance operations.
 
 ## Installation
 
@@ -22,6 +22,40 @@ pip install -e .
 ```bash
 export CELO_RPC_URL="https://forno.celo.org"  # Default: Celo mainnet
 export CELO_TESTNET_RPC_URL="https://alfajores-forno.celo-testnet.org"  # Alfajores testnet
+```
+
+## MCP Integration
+
+### Cursor IDE Integration
+
+To use this MCP server with Cursor IDE, add the following configuration to your MCP settings file (`~/.cursor/mcp.json`):
+
+```json
+{
+  "mcpServers": {
+    "celo-mcp": {
+      "command": "uvx",
+      "args": ["--refresh", "celo-mcp"]
+    }
+  }
+}
+```
+
+The `--refresh` flag ensures that the latest code is always loaded when the MCP server starts.
+
+### Claude Desktop Integration
+
+For Claude Desktop, add this configuration to your MCP settings file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "celo-mcp": {
+      "command": "uvx",
+      "args": ["--refresh", "celo-mcp"]
+    }
+  }
+}
 ```
 
 ## Usage
@@ -113,31 +147,16 @@ celo-mcp-server
     - Get current gas fee data including EIP-1559 fees
     - No parameters required
 
-## Architecture
+#### Governance Operations
 
-The server is built with a modular architecture:
+15. **get_governance_proposals**
 
-```
-src/celo_mcp/
-├── blockchain_data/     # Core blockchain data access
-│   ├── client.py       # Celo blockchain client
-│   ├── models.py       # Data models
-│   └── service.py      # Blockchain data service
-├── tokens/             # Token operations
-│   ├── models.py       # Token-related models
-│   └── service.py      # Token service (ERC20, Celo stable tokens)
-├── nfts/              # NFT operations
-│   ├── models.py       # NFT-related models
-│   └── service.py      # NFT service (ERC721, ERC1155)
-├── contracts/         # Smart contract interactions
-│   ├── models.py       # Contract-related models
-│   └── service.py      # Contract service
-├── transactions/      # Transaction management
-│   ├── models.py       # Transaction-related models
-│   └── service.py      # Transaction service
-├── server.py          # Main MCP server
-└── utils.py           # Utility functions
-```
+    - Get Celo governance proposals with pagination support
+    - Parameters: `include_inactive` (optional), `include_metadata` (optional), `page` (optional), `page_size` (optional), `offset` (optional), `limit` (optional)
+
+16. **get_proposal_details**
+    - Get detailed information about a specific governance proposal including content and voting history
+    - Parameters: `proposal_id`
 
 ## Key Features
 
@@ -171,30 +190,12 @@ src/celo_mcp/
 - **Transaction Simulation**: Simulate transactions before execution
 - **Fee Calculation**: Dynamic fee calculation based on network conditions
 
-## Error Handling
+### Governance Support
 
-The server includes comprehensive error handling:
-
-- Input validation for all parameters
-- Network error handling with retries
-- Graceful degradation for optional features
-- Detailed error messages for debugging
-
-## Caching
-
-Performance optimization through caching:
-
-- Contract ABI caching
-- Token metadata caching
-- NFT metadata caching with IPFS support
-- Network data caching with appropriate TTLs
-
-## Security Considerations
-
-- Read-only operations by default
-- No private key handling in the server
-- Input validation and sanitization
-- Rate limiting considerations for external API calls
+- **Proposal Management**: Retrieve and analyze Celo governance proposals
+- **Voting Data**: Access proposal voting history and results
+- **Metadata Integration**: Fetch proposal metadata from GitHub repositories
+- **Pagination Support**: Efficiently browse through large sets of proposals
 
 ## Development
 
