@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -94,8 +95,8 @@ async def fetch_cgp_header_only(cgp_number: int) -> Tuple[Optional[Dict], None]:
 
     try:
         async with httpx.AsyncClient(
-            timeout=5.0
-        ) as client:  # Shorter timeout for headers only
+            timeout=3.0
+        ) as client:  # Reduced from 5.0 to 3.0 for faster failures
             # Use HEAD request first to check if file exists
             head_response = await client.head(raw_url)
             if head_response.status_code == 404:
@@ -548,7 +549,9 @@ class GovernanceService:
                             id=metadata_dict.get("governance-proposal-id"),
                             url=metadata_dict.get("discussions-to"),
                             timestamp=None,  # We'll use on-chain timestamp
-                            timestamp_executed=None,  # Could parse date-executed if needed
+                            timestamp_executed=self._parse_date_to_timestamp(
+                                metadata_dict.get("date-executed")
+                            ),
                             votes=None,  # We'll use on-chain votes
                         )
 
@@ -807,7 +810,9 @@ class GovernanceService:
                         or cgp_to_proposal_map.get(cgp_number),
                         url=metadata_dict.get("discussions-to"),
                         timestamp=None,  # We'll use on-chain timestamp
-                        timestamp_executed=metadata_dict.get("date-executed"),
+                        timestamp_executed=self._parse_date_to_timestamp(
+                            metadata_dict.get("date-executed")
+                        ),
                         votes=None,  # We'll use on-chain votes
                     )
 
@@ -818,10 +823,13 @@ class GovernanceService:
                     return None
 
             # Execute all metadata fetches in parallel with controlled concurrency
-            semaphore = asyncio.Semaphore(10)  # Max 10 concurrent GitHub requests
+            semaphore = asyncio.Semaphore(
+                5
+            )  # Reduced from 10 to 5 for better stability
 
             async def fetch_with_semaphore(cgp_number: int):
                 async with semaphore:
+                    await asyncio.sleep(0.1)  # Small delay to avoid rate limiting
                     return await fetch_cgp_metadata(cgp_number)
 
             metadata_tasks = [fetch_with_semaphore(cgp_num) for cgp_num in cgp_numbers]
@@ -1336,3 +1344,34 @@ class GovernanceService:
             logger.error(f"Multicall failed, falling back to minimal method: {e}")
             # Fallback to minimal method if multicall fails
             return await self._fetch_governance_proposals_minimal(limit)
+
+    def _parse_date_to_timestamp(self, date_value: any) -> Optional[int]:
+        """Convert a date string or date object to a timestamp in milliseconds."""
+        if not date_value:
+            return None
+
+        try:
+            # Handle datetime.date objects (from YAML parsing)
+            if (
+                hasattr(date_value, "year")
+                and hasattr(date_value, "month")
+                and hasattr(date_value, "day")
+            ):
+                dt = datetime(date_value.year, date_value.month, date_value.day)
+                return int(dt.timestamp() * 1000)  # Convert to milliseconds
+
+            # Handle string dates
+            if isinstance(date_value, str):
+                # Try to parse ISO format date
+                if "-" in date_value:
+                    dt = datetime.fromisoformat(date_value.replace("Z", "+00:00"))
+                    return int(dt.timestamp() * 1000)
+
+            logger.debug(
+                f"Could not parse date value: {date_value} (type: {type(date_value)})"
+            )
+            return None
+
+        except Exception as e:
+            logger.warning(f"Failed to parse date {date_value}: {e}")
+            return None
