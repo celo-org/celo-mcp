@@ -366,7 +366,7 @@ async def list_tools() -> list[Tool]:
                     "include_metadata": {
                         "type": "boolean",
                         "description": "Whether to fetch metadata from GitHub repository (slower - only use when needed)",
-                        "default": False,
+                        "default": True,
                     },
                     "page": {
                         "type": "integer",
@@ -606,7 +606,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         # Governance operations
         elif name == "get_governance_proposals":
             include_inactive = arguments.get("include_inactive", True)
-            include_metadata = arguments.get("include_metadata", False)
+            include_metadata = arguments.get("include_metadata", True)
             page = arguments.get("page")
             page_size = arguments.get("page_size", 10)
             offset = arguments.get("offset")
