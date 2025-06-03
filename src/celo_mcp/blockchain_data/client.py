@@ -7,6 +7,7 @@ from typing import Any
 
 from web3 import Web3
 from web3.middleware import ExtraDataToPOAMiddleware
+import requests
 
 from ..config import get_settings
 from ..utils import validate_address, validate_block_number, validate_tx_hash
@@ -36,8 +37,25 @@ class CeloClient:
         else:
             self.rpc_url = "https://forno.celo.org"
 
-        # Initialize Web3
-        self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
+        # Initialize Web3 with timeout configuration
+        session = requests.Session()
+        session.timeout = 20  # 20 second timeout for HTTP requests
+
+        # Configure HTTP adapter with retry logic
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+
+        retry_strategy = Retry(
+            total=2,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+        )
+
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+
+        self.w3 = Web3(Web3.HTTPProvider(self.rpc_url, session=session))
 
         # Add Celo PoA middleware
         self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
@@ -253,16 +271,26 @@ class CeloClient:
         try:
             loop = asyncio.get_event_loop()
 
-            # Get account data
-            balance = await loop.run_in_executor(
-                None, lambda: self.w3.eth.get_balance(address)
-            )
-            nonce = await loop.run_in_executor(
-                None, lambda: self.w3.eth.get_transaction_count(address)
-            )
-            code = await loop.run_in_executor(
-                None, lambda: self.w3.eth.get_code(address)
-            )
+            # Get account data with timeout protection
+            async def get_account_data():
+                balance = await loop.run_in_executor(
+                    None, lambda: self.w3.eth.get_balance(address)
+                )
+                nonce = await loop.run_in_executor(
+                    None, lambda: self.w3.eth.get_transaction_count(address)
+                )
+                code = await loop.run_in_executor(
+                    None, lambda: self.w3.eth.get_code(address)
+                )
+                return balance, nonce, code
+
+            try:
+                balance, nonce, code = await asyncio.wait_for(
+                    get_account_data(), timeout=10.0
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout getting account data for {address}")
+                raise TimeoutError(f"Account data request timed out for {address}")
 
             account = Account(
                 address=address,

@@ -103,15 +103,27 @@ class TokenService:
 
             loop = asyncio.get_event_loop()
 
-            # Get token info
-            name = await loop.run_in_executor(None, contract.functions.name().call)
-            symbol = await loop.run_in_executor(None, contract.functions.symbol().call)
-            decimals = await loop.run_in_executor(
-                None, contract.functions.decimals().call
-            )
-            total_supply = await loop.run_in_executor(
-                None, contract.functions.totalSupply().call
-            )
+            # Get token info with timeout protection
+            async def get_contract_data():
+                name = await loop.run_in_executor(None, contract.functions.name().call)
+                symbol = await loop.run_in_executor(
+                    None, contract.functions.symbol().call
+                )
+                decimals = await loop.run_in_executor(
+                    None, contract.functions.decimals().call
+                )
+                total_supply = await loop.run_in_executor(
+                    None, contract.functions.totalSupply().call
+                )
+                return name, symbol, decimals, total_supply
+
+            try:
+                name, symbol, decimals, total_supply = await asyncio.wait_for(
+                    get_contract_data(), timeout=15.0
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout getting token info for {token_address}")
+                raise TimeoutError(f"Token info request timed out for {token_address}")
 
             token_info = TokenInfo(
                 address=token_address,
@@ -146,8 +158,18 @@ class TokenService:
             raise ValueError(f"Invalid account address: {account_address}")
 
         try:
-            # Get token info first
-            token_info = await self.get_token_info(token_address)
+            # Get token info first with timeout
+            try:
+                token_info = await asyncio.wait_for(
+                    self.get_token_info(token_address), timeout=10.0
+                )
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"Timeout getting token info for balance check: {token_address}"
+                )
+                raise TimeoutError(
+                    f"Token info timeout for balance check: {token_address}"
+                )
 
             # Create contract instance
             contract = self.client.w3.eth.contract(
@@ -156,13 +178,20 @@ class TokenService:
 
             loop = asyncio.get_event_loop()
 
-            # Get balance
-            balance = await loop.run_in_executor(
-                None,
-                contract.functions.balanceOf(
-                    Web3.to_checksum_address(account_address)
-                ).call,
-            )
+            # Get balance with timeout protection
+            try:
+                balance = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        contract.functions.balanceOf(
+                            Web3.to_checksum_address(account_address)
+                        ).call,
+                    ),
+                    timeout=10.0,
+                )
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout getting token balance for {token_address}")
+                raise TimeoutError(f"Token balance request timed out")
 
             # Format balance
             formatted_balance = str(balance / (10**token_info.decimals))
@@ -197,37 +226,76 @@ class TokenService:
         if not validate_address(account_address):
             raise ValueError(f"Invalid account address: {account_address}")
 
-        # Get native CELO balance
         try:
-            account = await self.client.get_account(account_address)
             balances = []
-
-            # Add native CELO balance
-            balances.append(
-                TokenBalance(
-                    token_address="0x0000000000000000000000000000000000000000",
-                    token_name="Celo",
-                    token_symbol="CELO",
-                    token_decimals=18,
-                    account_address=account_address,
-                    balance=account.balance,
-                    balance_formatted=str(int(account.balance) / 10**18),
-                )
-            )
-
-            # Get stable token balances
             network = "testnet" if self.client.use_testnet else "mainnet"
 
-            for token_symbol in ["cUSD", "cEUR", "cREAL"]:
+            # Create tasks for concurrent execution
+            tasks = []
+
+            # Task for native CELO balance
+            async def get_native_celo_balance():
+                try:
+                    account = await self.client.get_account(account_address)
+                    return TokenBalance(
+                        token_address="0x0000000000000000000000000000000000000000",
+                        token_name="Celo",
+                        token_symbol="CELO",
+                        token_decimals=18,
+                        account_address=account_address,
+                        balance=account.balance,
+                        balance_formatted=str(int(account.balance) / 10**18),
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to get native CELO balance: {e}")
+                    return None
+
+            # Tasks for stable token balances
+            async def get_stable_token_balance(token_symbol: str):
                 try:
                     token_address = CELO_TOKENS[token_symbol][network]
-                    token_balance = await self.get_token_balance(
-                        token_address, account_address
-                    )
-                    balances.append(token_balance)
+                    return await self.get_token_balance(token_address, account_address)
                 except Exception as e:
                     logger.warning(f"Failed to get {token_symbol} balance: {e}")
-                    continue
+                    return None
+
+            # Add native CELO task
+            tasks.append(get_native_celo_balance())
+
+            # Add stable token tasks
+            for token_symbol in ["cUSD", "cEUR", "cREAL"]:
+                tasks.append(get_stable_token_balance(token_symbol))
+
+            # Execute all tasks concurrently with timeout
+            try:
+                results = await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=25.0,  # 25 second timeout to stay under MCP's 30s limit
+                )
+
+                # Filter out None results and exceptions
+                for result in results:
+                    if result is not None and not isinstance(result, Exception):
+                        balances.append(result)
+
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout getting Celo balances for {account_address}")
+                # Return native CELO balance at minimum
+                try:
+                    account = await self.client.get_account(account_address)
+                    balances.append(
+                        TokenBalance(
+                            token_address="0x0000000000000000000000000000000000000000",
+                            token_name="Celo",
+                            token_symbol="CELO",
+                            token_decimals=18,
+                            account_address=account_address,
+                            balance=account.balance,
+                            balance_formatted=str(int(account.balance) / 10**18),
+                        )
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to get even native CELO balance: {e}")
 
             return balances
 
