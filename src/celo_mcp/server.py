@@ -378,7 +378,7 @@ async def list_tools() -> list[Tool]:
                         "description": "Number of proposals per page",
                         "default": 10,
                         "minimum": 1,
-                        "maximum": 50,
+                        "maximum": 20,
                     },
                     "offset": {
                         "type": "integer",
