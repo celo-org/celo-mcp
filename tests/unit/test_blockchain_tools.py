@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -13,52 +13,64 @@ from celo_mcp.server import call_tool
 class TestBlockchainDataTools:
     """Test blockchain data tools."""
 
+    @pytest.fixture
+    def mock_client(self):
+        """Create mock Celo client."""
+        client = MagicMock()
+        client.is_connected = AsyncMock(return_value=True)
+        client.get_network_info = AsyncMock(
+            return_value=NetworkInfo(
+                chain_id=44787,
+                network_name="Celo Testnet",
+                rpc_url="https://alfajores-forno.celo-testnet.org",
+                block_explorer_url="https://explorer.celo.org/alfajores",
+                native_currency={"name": "Celo", "symbol": "CELO", "decimals": 18},
+                latest_block=1000000,
+                gas_price="1000000000",
+                is_testnet=True,
+            )
+        )
+        return client
+
+    @pytest.fixture
+    def service(self, mock_client):
+        """Create blockchain data service with mock client."""
+        return BlockchainDataService(client=mock_client)
+
     @pytest.mark.asyncio
-    async def test_get_network_status_success(
-        self, mock_server_with_services, blockchain_service
-    ):
+    async def test_get_network_status_success(self, service):
         """Test successful network status retrieval."""
-        # Mock the service response
-        network_info = NetworkInfo(
-            chain_id=42220,
-            network_name="Celo Mainnet",
-            rpc_url="https://forno.celo.org",
-            block_explorer_url="https://celoscan.io",
-            native_currency={"name": "CELO", "symbol": "CELO", "decimals": 18},
-            latest_block=12345678,
-            gas_price="1000000000",
-            is_testnet=False,
-        )
-        blockchain_service.get_network_status = AsyncMock(return_value=network_info)
+        result = await service.get_network_status()
 
-        # Call the tool
-        result = await call_tool("get_network_status", {})
+        expected = {
+            "connected": True,
+            "network": {
+                "chain_id": 44787,
+                "network_name": "Celo Testnet",
+                "rpc_url": "https://alfajores-forno.celo-testnet.org",
+                "block_explorer_url": "https://explorer.celo.org/alfajores",
+                "native_currency": {"name": "Celo", "symbol": "CELO", "decimals": 18},
+                "latest_block": 1000000,
+                "gas_price": "1000000000",
+                "is_testnet": True,
+            },
+        }
 
-        # Verify the result
-        assert len(result) == 1
-        assert result[0].type == "text"
-        response_data = json.loads(result[0].text)
-        assert response_data["chain_id"] == 42220
-        assert response_data["network_name"] == "Celo Mainnet"
-        assert response_data["latest_block"] == 12345678
+        assert result == expected
 
     @pytest.mark.asyncio
-    async def test_get_network_status_error(
-        self, mock_server_with_services, blockchain_service
-    ):
-        """Test network status retrieval with error."""
-        # Mock the service to raise an exception
-        blockchain_service.get_network_status = AsyncMock(
-            side_effect=Exception("Network error")
-        )
+    async def test_get_network_status_connection_failed(self, service):
+        """Test network status when connection fails."""
+        service.client.is_connected.return_value = False
 
-        # Call the tool
-        result = await call_tool("get_network_status", {})
+        result = await service.get_network_status()
 
-        # Verify error handling
-        assert len(result) == 1
-        assert result[0].type == "text"
-        assert "Error: Network error" in result[0].text
+        expected = {
+            "connected": False,
+            "error": "Unable to connect to Celo network",
+        }
+
+        assert result == expected
 
     @pytest.mark.asyncio
     async def test_get_block_by_number_success(

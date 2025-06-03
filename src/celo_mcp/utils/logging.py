@@ -41,8 +41,8 @@ def setup_logging() -> None:
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
 
-    # Create console handler
-    handler = logging.StreamHandler(sys.stdout)
+    # Create console handler - use stderr to avoid interfering with MCP JSON-RPC protocol
+    handler = logging.StreamHandler(sys.stderr)
 
     # Set formatter based on configuration
     if settings.log_format.lower() == "json":

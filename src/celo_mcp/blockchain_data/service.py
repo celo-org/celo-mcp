@@ -28,7 +28,6 @@ class BlockchainDataService:
             return {
                 "connected": True,
                 "network": network_info.model_dump(),
-                "cache_stats": self.client.cache.stats(),
             }
         except Exception as e:
             logger.error(f"Failed to get network status: {e}")

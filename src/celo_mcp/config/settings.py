@@ -1,56 +1,39 @@
-"""Settings configuration for Celo MCP server."""
+"""Configuration settings for Celo MCP server."""
 
-from functools import lru_cache
+import os
+from typing import Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """Application settings."""
 
-    # Celo Network Configuration
-    celo_rpc_url: str = Field(
-        default="https://forno.celo.org", description="Celo mainnet RPC URL"
+    # RPC Configuration
+    rpc_url: str | None = Field(
+        default=None,
+        description="Celo RPC URL (defaults to Alfajores testnet if not set)",
     )
-    celo_testnet_rpc_url: str = Field(
-        default="https://alfajores-forno.celo-testnet.org",
-        description="Celo testnet RPC URL",
+    use_testnet: bool = Field(
+        default=True, description="Whether to use testnet (Alfajores)"
     )
-
-    # API Configuration
-    api_rate_limit: int = Field(
-        default=100, description="API rate limit (requests per minute)"
-    )
-    api_timeout: int = Field(default=30, description="API timeout in seconds")
 
     # Logging Configuration
-    log_level: str = Field(default="INFO", description="Logging level")
-    log_format: str = Field(default="json", description="Logging format (json or text)")
-
-    # Cache Configuration
-    cache_ttl: int = Field(default=300, description="Cache TTL in seconds")
-    cache_size: int = Field(default=1000, description="Maximum cache size")
-
-    # Development Configuration
-    debug: bool = Field(default=False, description="Enable debug mode")
-    environment: str = Field(
-        default="production",
-        description="Environment (development, staging, production)",
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(
+        default="INFO", description="Logging level"
+    )
+    log_format: Literal["text", "json"] = Field(
+        default="json", description="Log format"
     )
 
-    # Optional Custom Configuration
-    custom_rpc_url: str | None = Field(default=None, description="Custom RPC URL")
-    custom_api_key: str | None = Field(default=None, description="Custom API key")
+    class Config:
+        """Pydantic configuration."""
 
-    model_config = ConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-    )
+        env_prefix = "CELO_MCP_"
+        env_file = ".env"
 
 
-@lru_cache
 def get_settings() -> Settings:
-    """Get cached settings instance."""
+    """Get application settings."""
     return Settings()

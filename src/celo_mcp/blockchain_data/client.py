@@ -1,28 +1,22 @@
-"""Celo blockchain client for interacting with the Celo network."""
+"""Celo blockchain client for Web3 operations."""
 
 import asyncio
 import logging
 from datetime import datetime
 from typing import Any
 
-import httpx
 from web3 import Web3
 from web3.middleware import ExtraDataToPOAMiddleware
 
 from ..config import get_settings
-from ..utils import (
-    CacheManager,
-    validate_address,
-    validate_block_number,
-    validate_tx_hash,
-)
+from ..utils import validate_address, validate_block_number, validate_tx_hash
 from .models import Account, Block, NetworkInfo, Transaction
 
 logger = logging.getLogger(__name__)
 
 
 class CeloClient:
-    """Client for interacting with Celo blockchain."""
+    """Celo blockchain client with Web3 integration."""
 
     def __init__(self, rpc_url: str | None = None, use_testnet: bool = False):
         """Initialize Celo client.
@@ -32,28 +26,21 @@ class CeloClient:
             use_testnet: Whether to use testnet
         """
         self.settings = get_settings()
+        self.use_testnet = use_testnet
 
+        # Set RPC URL
         if rpc_url:
             self.rpc_url = rpc_url
         elif use_testnet:
-            self.rpc_url = self.settings.celo_testnet_rpc_url
+            self.rpc_url = "https://alfajores-forno.celo-testnet.org"
         else:
-            self.rpc_url = self.settings.celo_rpc_url
-
-        self.use_testnet = use_testnet
-        self.cache = CacheManager()
+            self.rpc_url = "https://forno.celo.org"
 
         # Initialize Web3
         self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
 
-        # Add PoA middleware for Celo
+        # Add Celo PoA middleware
         self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
-
-        # HTTP client for additional API calls
-        self.http_client = httpx.AsyncClient(
-            timeout=self.settings.api_timeout,
-            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
-        )
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -61,7 +48,7 @@ class CeloClient:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
-        await self.http_client.aclose()
+        pass
 
     async def is_connected(self) -> bool:
         """Check if client is connected to the network.
@@ -84,11 +71,6 @@ class CeloClient:
         Returns:
             Network information
         """
-        cache_key = f"network_info_{self.rpc_url}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return NetworkInfo(**cached)
-
         try:
             loop = asyncio.get_event_loop()
 
@@ -118,8 +100,6 @@ class CeloClient:
                 is_testnet=self.use_testnet,
             )
 
-            # Cache for 60 seconds
-            await self.cache.set(cache_key, network_info.model_dump(), ttl=60)
             return network_info
 
         except Exception as e:
@@ -142,11 +122,6 @@ class CeloClient:
             block_identifier
         ):
             raise ValueError(f"Invalid block identifier: {block_identifier}")
-
-        cache_key = f"block_{block_identifier}_{full_transactions}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return Block(**cached)
 
         try:
             loop = asyncio.get_event_loop()
@@ -193,9 +168,6 @@ class CeloClient:
                 uncles=[uncle.hex() for uncle in block_data.uncles],
             )
 
-            # Cache for 5 minutes (longer for older blocks)
-            ttl = 60 if block_identifier == "latest" else 300
-            await self.cache.set(cache_key, block.model_dump(), ttl=ttl)
             return block
 
         except Exception as e:
@@ -213,11 +185,6 @@ class CeloClient:
         """
         if not validate_tx_hash(tx_hash):
             raise ValueError(f"Invalid transaction hash: {tx_hash}")
-
-        cache_key = f"transaction_{tx_hash}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return Transaction(**cached)
 
         try:
             loop = asyncio.get_event_loop()
@@ -265,8 +232,6 @@ class CeloClient:
                 timestamp=block_timestamp,
             )
 
-            # Cache for 5 minutes
-            await self.cache.set(cache_key, transaction.model_dump(), ttl=300)
             return transaction
 
         except Exception as e:
@@ -285,13 +250,6 @@ class CeloClient:
         if not validate_address(address):
             raise ValueError(f"Invalid address: {address}")
 
-        # Convert to checksum address for Web3
-        address = self.w3.to_checksum_address(address)
-        cache_key = f"account_{address}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return Account(**cached)
-
         try:
             loop = asyncio.get_event_loop()
 
@@ -299,11 +257,9 @@ class CeloClient:
             balance = await loop.run_in_executor(
                 None, lambda: self.w3.eth.get_balance(address)
             )
-
             nonce = await loop.run_in_executor(
                 None, lambda: self.w3.eth.get_transaction_count(address)
             )
-
             code = await loop.run_in_executor(
                 None, lambda: self.w3.eth.get_code(address)
             )
@@ -315,8 +271,6 @@ class CeloClient:
                 code=code.hex() if code else None,
             )
 
-            # Cache for 1 minute
-            await self.cache.set(cache_key, account.model_dump(), ttl=60)
             return account
 
         except Exception as e:
@@ -324,14 +278,7 @@ class CeloClient:
             raise
 
     def _convert_transaction(self, tx_data: Any) -> Transaction:
-        """Convert Web3 transaction data to our Transaction model.
-
-        Args:
-            tx_data: Web3 transaction data
-
-        Returns:
-            Transaction model
-        """
+        """Convert Web3 transaction to our Transaction model."""
         return Transaction(
             hash=tx_data.hash.hex(),
             block_hash=tx_data.blockHash.hex() if tx_data.blockHash else None,

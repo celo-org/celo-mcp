@@ -1,24 +1,31 @@
-"""NFT operations service for Celo blockchain."""
+"""NFT service for ERC-721 and ERC-1155 operations."""
 
 import asyncio
+import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import httpx
-from eth_utils import to_checksum_address
-from web3.contract import Contract
+from web3 import Web3
 
-from ..blockchain_data.client import CeloClient
-from ..utils import CacheManager, validate_address
-from .models import (
-    NFTCollection,
-    NFTMetadata,
-    NFTToken,
-)
+from ..blockchain_data import CeloClient
+from ..utils import validate_address
+from .models import NFTBalance, NFTCollection, NFTToken
 
 logger = logging.getLogger(__name__)
 
-# ERC721 ABI
+# ERC-165 Interface Detection ABI
+ERC165_ABI = [
+    {
+        "constant": True,
+        "inputs": [{"name": "interfaceId", "type": "bytes4"}],
+        "name": "supportsInterface",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function",
+    }
+]
+
+# ERC-721 ABI (minimal)
 ERC721_ABI = [
     {
         "constant": True,
@@ -43,16 +50,16 @@ ERC721_ABI = [
     },
     {
         "constant": True,
-        "inputs": [{"name": "_tokenId", "type": "uint256"}],
-        "name": "ownerOf",
-        "outputs": [{"name": "", "type": "address"}],
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "", "type": "uint256"}],
         "type": "function",
     },
     {
         "constant": True,
-        "inputs": [{"name": "_owner", "type": "address"}],
-        "name": "balanceOf",
-        "outputs": [{"name": "", "type": "uint256"}],
+        "inputs": [{"name": "_tokenId", "type": "uint256"}],
+        "name": "ownerOf",
+        "outputs": [{"name": "", "type": "address"}],
         "type": "function",
     },
     {
@@ -62,57 +69,9 @@ ERC721_ABI = [
         "outputs": [{"name": "", "type": "string"}],
         "type": "function",
     },
-    {
-        "constant": True,
-        "inputs": [{"name": "_tokenId", "type": "uint256"}],
-        "name": "getApproved",
-        "outputs": [{"name": "", "type": "address"}],
-        "type": "function",
-    },
-    {
-        "constant": True,
-        "inputs": [
-            {"name": "_owner", "type": "address"},
-            {"name": "_operator", "type": "address"},
-        ],
-        "name": "isApprovedForAll",
-        "outputs": [{"name": "", "type": "bool"}],
-        "type": "function",
-    },
-    {
-        "constant": False,
-        "inputs": [
-            {"name": "_from", "type": "address"},
-            {"name": "_to", "type": "address"},
-            {"name": "_tokenId", "type": "uint256"},
-        ],
-        "name": "transferFrom",
-        "outputs": [],
-        "type": "function",
-    },
-    {
-        "constant": False,
-        "inputs": [
-            {"name": "_to", "type": "address"},
-            {"name": "_tokenId", "type": "uint256"},
-        ],
-        "name": "approve",
-        "outputs": [],
-        "type": "function",
-    },
-    {
-        "constant": False,
-        "inputs": [
-            {"name": "_operator", "type": "address"},
-            {"name": "_approved", "type": "bool"},
-        ],
-        "name": "setApprovalForAll",
-        "outputs": [],
-        "type": "function",
-    },
 ]
 
-# ERC1155 ABI
+# ERC-1155 ABI (minimal)
 ERC1155_ABI = [
     {
         "constant": True,
@@ -126,65 +85,11 @@ ERC1155_ABI = [
     },
     {
         "constant": True,
-        "inputs": [
-            {"name": "_owners", "type": "address[]"},
-            {"name": "_ids", "type": "uint256[]"},
-        ],
-        "name": "balanceOfBatch",
-        "outputs": [{"name": "", "type": "uint256[]"}],
-        "type": "function",
-    },
-    {
-        "constant": True,
         "inputs": [{"name": "_id", "type": "uint256"}],
         "name": "uri",
         "outputs": [{"name": "", "type": "string"}],
         "type": "function",
     },
-    {
-        "constant": True,
-        "inputs": [
-            {"name": "_owner", "type": "address"},
-            {"name": "_operator", "type": "address"},
-        ],
-        "name": "isApprovedForAll",
-        "outputs": [{"name": "", "type": "bool"}],
-        "type": "function",
-    },
-    {
-        "constant": False,
-        "inputs": [
-            {"name": "_from", "type": "address"},
-            {"name": "_to", "type": "address"},
-            {"name": "_id", "type": "uint256"},
-            {"name": "_amount", "type": "uint256"},
-            {"name": "_data", "type": "bytes"},
-        ],
-        "name": "safeTransferFrom",
-        "outputs": [],
-        "type": "function",
-    },
-    {
-        "constant": False,
-        "inputs": [
-            {"name": "_operator", "type": "address"},
-            {"name": "_approved", "type": "bool"},
-        ],
-        "name": "setApprovalForAll",
-        "outputs": [],
-        "type": "function",
-    },
-]
-
-# ERC165 ABI for interface detection
-ERC165_ABI = [
-    {
-        "constant": True,
-        "inputs": [{"name": "interfaceId", "type": "bytes4"}],
-        "name": "supportsInterface",
-        "outputs": [{"name": "", "type": "bool"}],
-        "type": "function",
-    }
 ]
 
 # Interface IDs
@@ -193,120 +98,98 @@ ERC1155_INTERFACE_ID = "0xd9b67a26"
 
 
 class NFTService:
-    """Service for NFT operations on Celo blockchain."""
+    """Service for NFT operations."""
 
-    def __init__(self, celo_client: CeloClient):
+    def __init__(self, client: CeloClient):
         """Initialize NFT service.
 
         Args:
-            celo_client: Celo blockchain client
+            client: Celo blockchain client
         """
-        self.client = celo_client
-        self.cache = CacheManager()
-        self.http_client = httpx.AsyncClient(timeout=30.0)
+        self.client = client
 
-    async def __aenter__(self):
-        """Async context manager entry."""
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit."""
-        await self.http_client.aclose()
-
-    def _get_contract(self, contract_address: str, abi: list) -> Contract:
-        """Get contract instance.
-
-        Args:
-            contract_address: Contract address
-            abi: Contract ABI
-
-        Returns:
-            Web3 contract instance
-        """
-        checksum_address = to_checksum_address(contract_address)
-        return self.client.w3.eth.contract(address=checksum_address, abi=abi)
-
-    async def _detect_token_standard(self, contract_address: str) -> str:
+    async def _detect_token_standard(
+        self, contract_address: str
+    ) -> Literal["ERC721", "ERC1155"]:
         """Detect if contract is ERC721 or ERC1155.
 
         Args:
-            contract_address: Contract address
+            contract_address: NFT contract address
 
         Returns:
-            Token standard ('ERC721' or 'ERC1155')
+            Token standard
         """
-        cache_key = f"token_standard_{contract_address.lower()}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return cached
-
         try:
-            contract = self._get_contract(contract_address, ERC165_ABI)
+            # Create ERC-165 contract instance
+            contract = self.client.w3.eth.contract(
+                address=Web3.to_checksum_address(contract_address), abi=ERC165_ABI
+            )
+
             loop = asyncio.get_event_loop()
 
-            # Check ERC721
-            is_erc721 = await loop.run_in_executor(
-                None,
-                contract.functions.supportsInterface(ERC721_INTERFACE_ID).call,
-            )
+            # Check ERC-1155 first (more specific)
+            try:
+                supports_1155 = await loop.run_in_executor(
+                    None,
+                    contract.functions.supportsInterface(ERC1155_INTERFACE_ID).call,
+                )
+                if supports_1155:
+                    return "ERC1155"
+            except Exception:
+                pass
 
-            if is_erc721:
-                await self.cache.set(cache_key, "ERC721", ttl=3600)
-                return "ERC721"
+            # Check ERC-721
+            try:
+                supports_721 = await loop.run_in_executor(
+                    None,
+                    contract.functions.supportsInterface(ERC721_INTERFACE_ID).call,
+                )
+                if supports_721:
+                    return "ERC721"
+            except Exception:
+                pass
 
-            # Check ERC1155
-            is_erc1155 = await loop.run_in_executor(
-                None,
-                contract.functions.supportsInterface(ERC1155_INTERFACE_ID).call,
-            )
-
-            if is_erc1155:
-                await self.cache.set(cache_key, "ERC1155", ttl=3600)
-                return "ERC1155"
-
-            # Default to ERC721 if detection fails
-            await self.cache.set(cache_key, "ERC721", ttl=3600)
+            # Default to ERC-721 if detection fails
             return "ERC721"
 
         except Exception as e:
             logger.warning(
                 f"Failed to detect token standard for {contract_address}: {e}"
             )
-            return "ERC721"  # Default
+            return "ERC721"
 
-    async def _fetch_metadata_from_uri(self, uri: str) -> NFTMetadata | None:
-        """Fetch metadata from URI.
+    async def _fetch_metadata(self, metadata_uri: str) -> dict[str, Any] | None:
+        """Fetch NFT metadata from URI.
 
         Args:
-            uri: Metadata URI
+            metadata_uri: Metadata URI
 
         Returns:
-            NFT metadata or None if failed
+            Metadata dictionary or None if failed
         """
-        if not uri or uri == "":
+        if not metadata_uri:
             return None
 
-        # Handle IPFS URIs
-        if uri.startswith("ipfs://"):
-            uri = uri.replace("ipfs://", "https://ipfs.io/ipfs/")
-
         try:
-            response = await self.http_client.get(uri)
-            response.raise_for_status()
-            metadata_json = response.json()
+            # Handle IPFS URLs
+            if metadata_uri.startswith("ipfs://"):
+                metadata_uri = metadata_uri.replace("ipfs://", "https://ipfs.io/ipfs/")
 
-            return NFTMetadata(
-                name=metadata_json.get("name"),
-                description=metadata_json.get("description"),
-                image=metadata_json.get("image"),
-                external_url=metadata_json.get("external_url"),
-                attributes=metadata_json.get("attributes", []),
-                animation_url=metadata_json.get("animation_url"),
-                background_color=metadata_json.get("background_color"),
-            )
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(metadata_uri)
+                response.raise_for_status()
+
+                # Try to parse as JSON
+                if response.headers.get("content-type", "").startswith(
+                    "application/json"
+                ):
+                    return response.json()
+                else:
+                    # Try to parse anyway
+                    return response.json()
 
         except Exception as e:
-            logger.warning(f"Failed to fetch metadata from {uri}: {e}")
+            logger.warning(f"Failed to fetch metadata from {metadata_uri}: {e}")
             return None
 
     async def get_nft_collection_info(self, contract_address: str) -> NFTCollection:
@@ -321,55 +204,63 @@ class NFTService:
         if not validate_address(contract_address):
             raise ValueError(f"Invalid contract address: {contract_address}")
 
-        cache_key = f"nft_collection_{contract_address.lower()}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return NFTCollection(**cached)
-
         try:
-            token_standard = await self._detect_token_standard(contract_address)
-            abi = ERC721_ABI if token_standard == "ERC721" else ERC1155_ABI
-            contract = self._get_contract(contract_address, abi)
+            # Detect token standard
+            standard = await self._detect_token_standard(contract_address)
+
+            # Create contract instance based on standard
+            if standard == "ERC721":
+                contract = self.client.w3.eth.contract(
+                    address=Web3.to_checksum_address(contract_address), abi=ERC721_ABI
+                )
+            else:
+                # For ERC1155, we'll use basic ERC721 functions that might exist
+                contract = self.client.w3.eth.contract(
+                    address=Web3.to_checksum_address(contract_address), abi=ERC721_ABI
+                )
+
             loop = asyncio.get_event_loop()
 
-            # Get basic info
-            name = None
-            symbol = None
-            total_supply = None
+            # Get basic collection info
+            try:
+                name = await loop.run_in_executor(None, contract.functions.name().call)
+            except Exception:
+                name = f"Unknown Collection ({contract_address[:8]}...)"
 
             try:
-                if token_standard == "ERC721":
-                    name = await loop.run_in_executor(
-                        None, contract.functions.name().call
-                    )
-                    symbol = await loop.run_in_executor(
-                        None, contract.functions.symbol().call
-                    )
-                    total_supply = await loop.run_in_executor(
-                        None, contract.functions.totalSupply().call
-                    )
+                symbol = await loop.run_in_executor(
+                    None, contract.functions.symbol().call
+                )
             except Exception:
-                pass  # Some contracts might not implement these
+                symbol = "UNKNOWN"
+
+            try:
+                total_supply = await loop.run_in_executor(
+                    None, contract.functions.totalSupply().call
+                )
+            except Exception:
+                total_supply = None
 
             collection = NFTCollection(
-                contract_address=to_checksum_address(contract_address),
+                contract_address=contract_address,
                 name=name,
                 symbol=symbol,
-                token_standard=token_standard,
-                total_supply=str(total_supply) if total_supply is not None else None,
+                standard=standard,
+                total_supply=total_supply,
+                description=None,
+                image=None,
+                external_link=None,
             )
 
-            # Cache for 1 hour
-            await self.cache.set(cache_key, collection.model_dump(), ttl=3600)
             return collection
 
         except Exception as e:
-            logger.error(f"Failed to get collection info for {contract_address}: {e}")
+            logger.error(
+                f"Failed to get NFT collection info for {contract_address}: {e}"
+            )
             raise
 
-    async def get_nft_token_info(
-        self, contract_address: str, token_id: str
-    ) -> NFTToken:
+    async def get_nft_info(self, contract_address: str, token_id: str) -> NFTToken:
         """Get NFT token information.
 
         Args:
@@ -382,75 +273,86 @@ class NFTService:
         if not validate_address(contract_address):
             raise ValueError(f"Invalid contract address: {contract_address}")
 
-        cache_key = f"nft_token_{contract_address.lower()}_{token_id}"
-        cached = await self.cache.get(cache_key)
-        if cached:
-            return NFTToken(**cached)
-
         try:
-            token_standard = await self._detect_token_standard(contract_address)
+            # Get collection info first
             collection = await self.get_nft_collection_info(contract_address)
 
-            # Get token-specific info
-            owner = None
-            metadata_uri = None
-            balance = None
+            # Create contract instance based on standard
+            if collection.standard == "ERC721":
+                contract = self.client.w3.eth.contract(
+                    address=Web3.to_checksum_address(contract_address), abi=ERC721_ABI
+                )
+            else:
+                contract = self.client.w3.eth.contract(
+                    address=Web3.to_checksum_address(contract_address), abi=ERC1155_ABI
+                )
 
-            if token_standard == "ERC721":
-                contract = self._get_contract(contract_address, ERC721_ABI)
-                loop = asyncio.get_event_loop()
+            loop = asyncio.get_event_loop()
 
-                try:
+            # Get token info
+            try:
+                if collection.standard == "ERC721":
                     owner = await loop.run_in_executor(
                         None, contract.functions.ownerOf(int(token_id)).call
                     )
                     metadata_uri = await loop.run_in_executor(
                         None, contract.functions.tokenURI(int(token_id)).call
                     )
-                except Exception:
-                    pass
-
-            elif token_standard == "ERC1155":
-                contract = self._get_contract(contract_address, ERC1155_ABI)
-                loop = asyncio.get_event_loop()
-
-                try:
+                else:
+                    owner = None  # ERC1155 doesn't have single owner
                     metadata_uri = await loop.run_in_executor(
                         None, contract.functions.uri(int(token_id)).call
                     )
-                except Exception:
-                    pass
+            except Exception as e:
+                logger.warning(f"Failed to get token info for {token_id}: {e}")
+                owner = None
+                metadata_uri = None
 
             # Fetch metadata
-            metadata = None
-            if metadata_uri:
-                metadata = await self._fetch_metadata_from_uri(metadata_uri)
-
-            token = NFTToken(
-                contract_address=to_checksum_address(contract_address),
-                token_id=token_id,
-                token_standard=token_standard,
-                owner=owner,
-                name=collection.name,
-                symbol=collection.symbol,
-                metadata=metadata,
-                metadata_uri=metadata_uri,
-                balance=balance,
+            metadata = (
+                await self._fetch_metadata(metadata_uri) if metadata_uri else None
             )
 
-            # Cache for 5 minutes
-            await self.cache.set(cache_key, token.model_dump(), ttl=300)
+            # Extract metadata fields
+            name = None
+            description = None
+            image = None
+            attributes = []
+
+            if metadata:
+                name = metadata.get("name")
+                description = metadata.get("description")
+                image = metadata.get("image")
+                attributes = metadata.get("attributes", [])
+
+                # Handle IPFS image URLs
+                if image and image.startswith("ipfs://"):
+                    image = image.replace("ipfs://", "https://ipfs.io/ipfs/")
+
+            token = NFTToken(
+                contract_address=contract_address,
+                token_id=token_id,
+                owner=owner,
+                name=name or f"Token #{token_id}",
+                description=description,
+                image=image,
+                metadata_uri=metadata_uri,
+                metadata=metadata,
+                attributes=attributes,
+                standard=collection.standard,
+            )
+
             return token
 
         except Exception as e:
             logger.error(
-                f"Failed to get token info for {contract_address}:{token_id}: {e}"
+                f"Failed to get NFT info for {contract_address}, token {token_id}: {e}"
             )
             raise
 
     async def get_nft_balance(
         self, contract_address: str, owner_address: str, token_id: str | None = None
-    ) -> str:
+    ) -> NFTBalance:
         """Get NFT balance for an address.
 
         Args:
@@ -459,7 +361,7 @@ class NFTService:
             token_id: Token ID (required for ERC1155)
 
         Returns:
-            Balance as string
+            NFT balance information
         """
         if not validate_address(contract_address):
             raise ValueError(f"Invalid contract address: {contract_address}")
@@ -467,122 +369,60 @@ class NFTService:
             raise ValueError(f"Invalid owner address: {owner_address}")
 
         try:
-            token_standard = await self._detect_token_standard(contract_address)
+            # Get collection info to determine standard
+            collection = await self.get_nft_collection_info(contract_address)
 
-            if token_standard == "ERC721":
-                contract = self._get_contract(contract_address, ERC721_ABI)
+            # Create contract instance based on standard
+            if collection.standard == "ERC721":
+                contract = self.client.w3.eth.contract(
+                    address=Web3.to_checksum_address(contract_address), abi=ERC721_ABI
+                )
                 loop = asyncio.get_event_loop()
 
+                # For ERC721, get total balance
                 balance = await loop.run_in_executor(
                     None,
                     contract.functions.balanceOf(
-                        to_checksum_address(owner_address)
+                        Web3.to_checksum_address(owner_address)
                     ).call,
                 )
-                return str(balance)
 
-            elif token_standard == "ERC1155":
-                if token_id is None:
-                    raise ValueError("Token ID is required for ERC1155")
+                return NFTBalance(
+                    contract_address=contract_address,
+                    owner_address=owner_address,
+                    token_id=token_id,
+                    balance=balance,
+                    standard=collection.standard,
+                )
 
-                contract = self._get_contract(contract_address, ERC1155_ABI)
+            else:  # ERC1155
+                if not token_id:
+                    raise ValueError("Token ID is required for ERC1155 balance queries")
+
+                contract = self.client.w3.eth.contract(
+                    address=Web3.to_checksum_address(contract_address), abi=ERC1155_ABI
+                )
                 loop = asyncio.get_event_loop()
 
+                # For ERC1155, get balance for specific token ID
                 balance = await loop.run_in_executor(
                     None,
                     contract.functions.balanceOf(
-                        to_checksum_address(owner_address), int(token_id)
+                        Web3.to_checksum_address(owner_address), int(token_id)
                     ).call,
                 )
-                return str(balance)
 
-            else:
-                raise ValueError(f"Unsupported token standard: {token_standard}")
-
-        except Exception as e:
-            logger.error(f"Failed to get NFT balance: {e}")
-            raise
-
-    async def create_nft_transfer_transaction(
-        self,
-        contract_address: str,
-        from_address: str,
-        to_address: str,
-        token_id: str,
-        amount: str = "1",
-    ) -> dict[str, Any]:
-        """Create NFT transfer transaction.
-
-        Args:
-            contract_address: NFT contract address
-            from_address: Sender address
-            to_address: Recipient address
-            token_id: Token ID
-            amount: Amount (for ERC1155, default 1)
-
-        Returns:
-            Transaction data for signing
-        """
-        if not validate_address(contract_address):
-            raise ValueError(f"Invalid contract address: {contract_address}")
-        if not validate_address(from_address):
-            raise ValueError(f"Invalid from address: {from_address}")
-        if not validate_address(to_address):
-            raise ValueError(f"Invalid to address: {to_address}")
-
-        try:
-            token_standard = await self._detect_token_standard(contract_address)
-            loop = asyncio.get_event_loop()
-
-            if token_standard == "ERC721":
-                contract = self._get_contract(contract_address, ERC721_ABI)
-
-                transaction = await loop.run_in_executor(
-                    None,
-                    lambda: contract.functions.transferFrom(
-                        to_checksum_address(from_address),
-                        to_checksum_address(to_address),
-                        int(token_id),
-                    ).build_transaction(
-                        {
-                            "from": to_checksum_address(from_address),
-                            "gas": 150000,  # Default gas limit for NFT transfer
-                            "gasPrice": self.client.w3.eth.gas_price,
-                            "nonce": self.client.w3.eth.get_transaction_count(
-                                to_checksum_address(from_address)
-                            ),
-                        }
-                    ),
+                return NFTBalance(
+                    contract_address=contract_address,
+                    owner_address=owner_address,
+                    token_id=token_id,
+                    balance=balance,
+                    standard=collection.standard,
                 )
 
-            elif token_standard == "ERC1155":
-                contract = self._get_contract(contract_address, ERC1155_ABI)
-
-                transaction = await loop.run_in_executor(
-                    None,
-                    lambda: contract.functions.safeTransferFrom(
-                        to_checksum_address(from_address),
-                        to_checksum_address(to_address),
-                        int(token_id),
-                        int(amount),
-                        b"",  # Empty data
-                    ).build_transaction(
-                        {
-                            "from": to_checksum_address(from_address),
-                            "gas": 200000,  # Default gas limit for ERC1155 transfer
-                            "gasPrice": self.client.w3.eth.gas_price,
-                            "nonce": self.client.w3.eth.get_transaction_count(
-                                to_checksum_address(from_address)
-                            ),
-                        }
-                    ),
-                )
-
-            else:
-                raise ValueError(f"Unsupported token standard: {token_standard}")
-
-            return transaction
-
         except Exception as e:
-            logger.error(f"Failed to create NFT transfer transaction: {e}")
+            logger.error(
+                f"Failed to get NFT balance for {contract_address}, "
+                f"owner {owner_address}, token {token_id}: {e}"
+            )
             raise

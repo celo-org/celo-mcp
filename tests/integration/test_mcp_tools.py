@@ -20,20 +20,23 @@ class TestBlockchainDataTools:
     @pytest.mark.asyncio
     async def test_get_network_status(self, mock_server_with_services):
         """Test get_network_status tool."""
-        # Mock the service response
-        network_info = NetworkInfo(
-            chain_id=42220,
-            network_name="Celo Mainnet",
-            rpc_url="https://forno.celo.org",
-            block_explorer_url="https://celoscan.io",
-            native_currency={"name": "CELO", "symbol": "CELO", "decimals": 18},
-            latest_block=12345678,
-            gas_price="1000000000",
-            is_testnet=False,
-        )
+        # Mock the service response with the correct structure
+        network_status = {
+            "connected": True,
+            "network": {
+                "chain_id": 42220,
+                "network_name": "Celo Mainnet",
+                "rpc_url": "https://forno.celo.org",
+                "block_explorer_url": "https://celoscan.io",
+                "native_currency": {"name": "CELO", "symbol": "CELO", "decimals": 18},
+                "latest_block": 12345678,
+                "gas_price": "1000000000",
+                "is_testnet": False,
+            },
+        }
 
         with patch("celo_mcp.server.blockchain_service") as mock_service:
-            mock_service.get_network_status = AsyncMock(return_value=network_info)
+            mock_service.get_network_status = AsyncMock(return_value=network_status)
 
             result = await call_tool("get_network_status", {})
 
@@ -41,9 +44,10 @@ class TestBlockchainDataTools:
             assert isinstance(result[0], TextContent)
 
             response_data = json.loads(result[0].text)
-            assert response_data["chain_id"] == 42220
-            assert response_data["network_name"] == "Celo Mainnet"
-            assert response_data["is_testnet"] is False
+            assert response_data["connected"] is True
+            assert response_data["network"]["chain_id"] == 42220
+            assert response_data["network"]["network_name"] == "Celo Mainnet"
+            assert response_data["network"]["is_testnet"] is False
 
     @pytest.mark.asyncio
     async def test_get_block_by_number(

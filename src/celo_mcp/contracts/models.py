@@ -58,6 +58,16 @@ class FunctionCall(BaseModel):
     gas_limit: int | None = Field(None, description="Gas limit")
 
 
+class ContractCallResult(BaseModel):
+    """Contract function call result model."""
+
+    contract_address: str = Field(..., description="Contract address")
+    function_name: str = Field(..., description="Function name")
+    result: Any = Field(None, description="Function call result")
+    success: bool = Field(..., description="Whether call was successful")
+    error: str | None = Field(None, description="Error message if failed")
+
+
 class FunctionResult(BaseModel):
     """Function call result model."""
 
@@ -119,7 +129,10 @@ class EventLog(BaseModel):
 class GasEstimate(BaseModel):
     """Gas estimate model."""
 
-    gas_limit: int = Field(..., description="Estimated gas limit")
+    contract_address: str = Field(..., description="Contract address")
+    function_name: str = Field(..., description="Function name")
+    gas_estimate: int = Field(..., description="Estimated gas limit")
     gas_price: str = Field(..., description="Current gas price")
-    estimated_cost: str = Field(..., description="Estimated cost in wei")
-    estimated_cost_formatted: str = Field(..., description="Formatted cost in CELO")
+    total_cost: str = Field(..., description="Total cost in wei")
+    success: bool = Field(..., description="Whether estimation was successful")
+    error: str | None = Field(None, description="Error message if failed")

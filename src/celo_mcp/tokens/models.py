@@ -23,6 +23,7 @@ class TokenBalance(BaseModel):
     token_name: str | None = Field(None, description="Token name")
     token_symbol: str | None = Field(None, description="Token symbol")
     token_decimals: int | None = Field(None, description="Token decimals")
+    account_address: str = Field(..., description="Account address")
     balance: str = Field(..., description="Token balance (raw)")
     balance_formatted: str | None = Field(None, description="Formatted balance")
     balance_usd: str | None = Field(None, description="Balance in USD")
