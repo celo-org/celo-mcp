@@ -158,6 +158,32 @@ celo-mcp-server
     - Get detailed information about a specific governance proposal including content and voting history
     - Parameters: `proposal_id`
 
+#### Staking Operations
+
+17. **get_staking_balances**
+
+    - Get staking balances for an address, including active and pending stakes broken down by validator group
+    - Parameters: `address`
+
+18. **get_activatable_stakes**
+
+    - Get information about pending stakes that can be activated for earning rewards
+    - Parameters: `address`
+
+19. **get_validator_groups**
+
+    - Get information about all validator groups, including their members, votes, capacity, and performance metrics
+    - No parameters required
+
+20. **get_validator_group_details**
+
+    - Get detailed information about a specific validator group including its members and performance data
+    - Parameters: `group_address`
+
+21. **get_total_staking_info**
+    - Get network-wide staking information including total votes and participation metrics
+    - No parameters required
+
 ## Key Features
 
 ### Token Support
@@ -196,6 +222,14 @@ celo-mcp-server
 - **Voting Data**: Access proposal voting history and results
 - **Metadata Integration**: Fetch proposal metadata from GitHub repositories
 - **Pagination Support**: Efficiently browse through large sets of proposals
+
+### Staking Support
+
+- **Staking Balances**: View active and pending stakes by validator group
+- **Activation Tracking**: Check which pending stakes can be activated
+- **Validator Information**: Comprehensive validator and validator group data
+- **Performance Metrics**: Validator scores, election status, and capacity
+- **Network Statistics**: Total voting power and staking participation
 
 ## Development
 

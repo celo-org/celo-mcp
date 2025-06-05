@@ -14,6 +14,7 @@ from .blockchain_data import BlockchainDataService
 from .contracts import ContractService
 from .governance import GovernanceService
 from .nfts import NFTService
+from .staking import StakingService
 from .tokens import TokenService
 from .transactions import TransactionService
 from .utils import setup_logging
@@ -40,6 +41,7 @@ nft_service: NFTService = None
 contract_service: ContractService = None
 transaction_service: TransactionService = None
 governance_service: GovernanceService = None
+staking_service: StakingService = None
 
 
 @server.list_tools()
@@ -129,7 +131,7 @@ async def list_tools() -> list[Tool]:
             description=(
                 "Get information about the most recent blocks on the Celo "
                 "blockchain, with the ability to specify the number of blocks "
-                "to retrieve."
+                "to retrieve and starting offset."
             ),
             inputSchema={
                 "type": "object",
@@ -143,7 +145,17 @@ async def list_tools() -> list[Tool]:
                         "default": 10,
                         "minimum": 1,
                         "maximum": 100,
-                    }
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": (
+                            "Number of blocks to skip from the latest block. "
+                            "For example, offset=0 gets the very latest blocks, "
+                            "offset=10 gets blocks starting from 10 blocks ago."
+                        ),
+                        "default": 0,
+                        "minimum": 0,
+                    },
                 },
                 "required": [],
             },
@@ -412,6 +424,102 @@ async def list_tools() -> list[Tool]:
                 "required": ["proposal_id"],
             },
         ),
+        # Staking operations
+        Tool(
+            name="get_staking_balances",
+            description=(
+                "Get staking balances for an address, including active and pending "
+                "stakes broken down by validator group."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "address": {
+                        "type": "string",
+                        "description": "The address to check staking balances for.",
+                    }
+                },
+                "required": ["address"],
+            },
+        ),
+        Tool(
+            name="get_activatable_stakes",
+            description=(
+                "Get information about pending stakes that can be activated for "
+                "earning rewards."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "address": {
+                        "type": "string",
+                        "description": "The address to check activatable stakes for.",
+                    }
+                },
+                "required": ["address"],
+            },
+        ),
+        Tool(
+            name="get_validator_groups",
+            description=(
+                "Get information about all validator groups, including their "
+                "members, votes, capacity, and performance metrics."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number (1-based). If provided, overrides offset/limit",
+                        "minimum": 1,
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of validator groups per page",
+                        "default": 10,
+                        "minimum": 1,
+                        "maximum": 50,
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of validator groups to skip (alternative to page-based pagination)",
+                        "minimum": 0,
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of validator groups to return (alternative to page_size)",
+                        "minimum": 1,
+                        "maximum": 100,
+                    },
+                },
+                "required": [],
+            },
+        ),
+        Tool(
+            name="get_validator_group_details",
+            description=(
+                "Get detailed information about a specific validator group "
+                "including its members and performance data."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "group_address": {
+                        "type": "string",
+                        "description": "The validator group address.",
+                    }
+                },
+                "required": ["group_address"],
+            },
+        ),
+        Tool(
+            name="get_total_staking_info",
+            description=(
+                "Get network-wide staking information including total votes "
+                "and participation metrics."
+            ),
+            inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
     ]
 
 
@@ -419,7 +527,7 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     global blockchain_service, token_service, nft_service, contract_service
-    global transaction_service, governance_service
+    global transaction_service, governance_service, staking_service
 
     try:
         # Blockchain data operations
@@ -467,7 +575,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 
         elif name == "get_latest_blocks":
             count = arguments.get("count", 10)
-            result = await blockchain_service.get_latest_blocks(count)
+            offset = arguments.get("offset", 0)
+            result = await blockchain_service.get_latest_blocks(count, offset)
             return [
                 TextContent(
                     type="text",
@@ -636,6 +745,64 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 )
             ]
 
+        # Staking operations
+        elif name == "get_staking_balances":
+            address = arguments["address"]
+            result = await staking_service.get_staking_balances(address)
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
+
+        elif name == "get_activatable_stakes":
+            address = arguments["address"]
+            result = await staking_service.get_activatable_stakes(address)
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
+
+        elif name == "get_validator_groups":
+            page = arguments.get("page")
+            page_size = arguments.get("page_size", 10)
+            offset = arguments.get("offset")
+            limit = arguments.get("limit")
+            result = await staking_service.get_validator_groups(
+                page=page,
+                page_size=page_size,
+                offset=offset,
+                limit=limit,
+            )
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
+
+        elif name == "get_validator_group_details":
+            group_address = arguments["group_address"]
+            result = await staking_service.get_validator_group_details(group_address)
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
+
+        elif name == "get_total_staking_info":
+            result = await staking_service.get_total_staking_info()
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result, indent=2, cls=DateTimeEncoder),
+                )
+            ]
+
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -647,7 +814,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
 async def main():
     """Main server function."""
     global blockchain_service, token_service, nft_service, contract_service
-    global transaction_service, governance_service
+    global transaction_service, governance_service, staking_service
 
     # Setup logging
     setup_logging()
@@ -662,10 +829,11 @@ async def main():
     contract_service = ContractService(client)
     transaction_service = TransactionService(client)
     governance_service = GovernanceService(client)
+    staking_service = StakingService(client)
 
     logger.info("Starting Celo MCP Server with Stage 2 capabilities")
     logger.info(
-        "Available services: Blockchain Data, Tokens, NFTs, Contracts, Transactions, Governance"
+        "Available services: Blockchain Data, Tokens, NFTs, Contracts, Transactions, Governance, Staking"
     )
 
     # Run the server

@@ -90,8 +90,8 @@ class BlockchainDataService:
             logger.error(f"Failed to get account details for {address}: {e}")
             raise
 
-    async def get_latest_blocks(self, count: int = 10) -> list[dict]:
-        """Get latest blocks."""
+    async def get_latest_blocks(self, count: int = 10, offset: int = 0) -> list[dict]:
+        """Get latest blocks with optional offset for pagination."""
         try:
             # Get latest block number
             network_info = await self.client.get_network_info()
@@ -99,7 +99,7 @@ class BlockchainDataService:
 
             blocks = []
             for i in range(count):
-                block_num = latest_block_num - i
+                block_num = latest_block_num - offset - i
                 if block_num < 0:
                     break
 
