@@ -1,29 +1,27 @@
 """Governance module for Celo blockchain governance data access."""
 
 from .models import (
-    GovernanceProposal,
     GovernanceProposalsResponse,
-    ProposalDetails,
+    MergedProposalData,
+    Proposal,
+    ProposalDetailsResponse,
     ProposalMetadata,
     ProposalStage,
-    ProposalStatus,
-    ProposalSummary,
-    ProposalType,
-    ProposalVote,
-    Vote,
+    ProposalMetadataStatus,
+    VoteAmounts,
+    VoteType,
 )
 from .service import GovernanceService
 
 __all__ = [
     "GovernanceService",
-    "GovernanceProposal",
     "GovernanceProposalsResponse",
-    "ProposalDetails",
+    "MergedProposalData",
+    "Proposal",
+    "ProposalDetailsResponse",
     "ProposalMetadata",
-    "ProposalStatus",
     "ProposalStage",
-    "ProposalSummary",
-    "ProposalType",
-    "ProposalVote",
-    "Vote",
+    "ProposalMetadataStatus",
+    "VoteAmounts",
+    "VoteType",
 ]

@@ -51,7 +51,10 @@ def from_wei_rounded(
 def format_number_string(
     value: int | float | str | None, decimals: int = 0, is_wei: bool = False
 ) -> str:
-    """Format number with commas and proper decimals, matching Mondo's formatNumberString."""
+    """
+    Format number with commas and proper decimals,
+    matching Mondo's formatNumberString.
+    """
     if value is None:
         return "0"
 

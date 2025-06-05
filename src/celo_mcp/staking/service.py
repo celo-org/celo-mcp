@@ -337,7 +337,10 @@ class StakingService:
         )
 
     async def _get_staking_balances_individual(self, address: str) -> StakingBalances:
-        """Individual get_staking_balances implementation using separate contract calls."""
+        """
+        Individual get_staking_balances implementation using
+        separate contract calls.
+        """
         election_contract = self.client.w3.eth.contract(
             address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
             abi=self.ELECTION_ABI,
@@ -577,7 +580,10 @@ class StakingService:
     async def _get_activatable_stakes_individual(
         self, address: str, group_to_stake: dict[str, StakeInfo] | None = None
     ) -> ActivatableStakes:
-        """Individual get_activatable_stakes implementation using separate contract calls."""
+        """
+        Individual get_activatable_stakes implementation using
+        separate contract calls.
+        """
         if group_to_stake is None:
             staking_balances = await self.get_staking_balances(address)
             group_to_stake = staking_balances.group_to_stake.stakes
@@ -685,25 +691,21 @@ class StakingService:
         offset: int | None = None,
         limit: int | None = None,
     ) -> PaginatedValidatorGroups:
-        """Optimized get_validator_groups using Mondo's approach with getTotalVotesForEligibleValidatorGroups."""
+        """
+        Optimized get_validator_groups using Mondo's approach with
+        getTotalVotesForEligibleValidatorGroups.
+        """
         # Get contract instances
-        validators_contract = self.client.w3.eth.contract(
-            address=Web3.to_checksum_address(self.VALIDATORS_ADDRESS),
-            abi=self.VALIDATORS_ABI,
-        )
         election_contract = self.client.w3.eth.contract(
             address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
             abi=self.ELECTION_ABI,
-        )
-        accounts_contract = self.client.w3.eth.contract(
-            address=Web3.to_checksum_address(self.ACCOUNTS_ADDRESS),
-            abi=self.ACCOUNTS_ABI,
         )
 
         loop = asyncio.get_event_loop()
 
         try:
-            # Step 1: Get eligible groups and their votes directly (Mondo's key optimization!)
+            # Step 1: Get eligible groups and their votes directly
+            # (Mondo's key optimization!)
             eligible_groups_data = await loop.run_in_executor(
                 None,
                 election_contract.functions.getTotalVotesForEligibleValidatorGroups().call,
@@ -722,9 +724,11 @@ class StakingService:
             )
 
         except Exception as e:
-            # Fallback to old method if getTotalVotesForEligibleValidatorGroups doesn't exist
+            # Fallback to old method if getTotalVotesForEligibleValidatorGroups
+            # doesn't exist
             logger.warning(
-                f"getTotalVotesForEligibleValidatorGroups failed: {e}, falling back to getEligibleValidatorGroups"
+                f"getTotalVotesForEligibleValidatorGroups failed: {e}, "
+                f"falling back to getEligibleValidatorGroups"
             )
             eligible_group_addresses, total_votes = await asyncio.gather(
                 loop.run_in_executor(
@@ -747,7 +751,8 @@ class StakingService:
                 group_info = data.get("group_info")
                 group_name = data.get("name", f"{group_addr[:10]}...")
 
-                # Use votes from getTotalVotesForEligibleValidatorGroups if available, otherwise from individual calls
+                # Use votes from getTotalVotesForEligibleValidatorGroups if
+                # available, otherwise from individual calls
                 if eligible_group_votes is not None:
                     votes = eligible_group_votes[i]
                 else:
@@ -760,11 +765,13 @@ class StakingService:
                 members_addrs = group_info[0]
                 last_slashed = group_info[1] if group_info[1] > 0 else None
 
-                # For list view, we'll include basic member info without detailed processing
+                # For list view, we'll include basic member info without
+                # detailed processing
                 # This avoids the expensive validator-to-group mapping
                 num_members = len(members_addrs)
 
-                # Create basic member info (without individual validator details for performance)
+                # Create basic member info (without individual validator
+                # details for performance)
                 members = {}
                 for member_addr in members_addrs:
                     members[member_addr] = ValidatorInfo(
@@ -844,7 +851,10 @@ class StakingService:
         offset: int | None = None,
         limit: int | None = None,
     ) -> PaginatedValidatorGroups:
-        """Individual get_validator_groups implementation using separate contract calls."""
+        """
+        Individual get_validator_groups implementation using
+        separate contract calls.
+        """
         # Get contract instances
         election_contract = self.client.w3.eth.contract(
             address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
@@ -868,9 +878,11 @@ class StakingService:
             )
 
         except Exception as e:
-            # Fallback to old method if getTotalVotesForEligibleValidatorGroups doesn't exist
+            # Fallback to old method if getTotalVotesForEligibleValidatorGroups
+            # doesn't exist
             logger.warning(
-                f"getTotalVotesForEligibleValidatorGroups failed: {e}, falling back"
+                f"getTotalVotesForEligibleValidatorGroups failed: {e}, "
+                f"falling back to getEligibleValidatorGroups"
             )
             eligible_group_addresses, total_votes = await asyncio.gather(
                 loop.run_in_executor(
@@ -917,10 +929,10 @@ class StakingService:
                 address=Web3.to_checksum_address(self.ACCOUNTS_ADDRESS),
                 abi=self.ACCOUNTS_ABI,
             )
-            election_contract = self.client.w3.eth.contract(
-                address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
-                abi=self.ELECTION_ABI,
-            )
+            # election_contract = self.client.w3.eth.contract(
+            #     address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
+            #     abi=self.ELECTION_ABI,
+            # )
 
             group_addr_checksum = Web3.to_checksum_address(group_addr)
 
@@ -971,7 +983,8 @@ class StakingService:
             last_slashed = group_info[1] if group_info[1] > 0 else None
             num_members = len(members_addrs)
 
-            # Create basic member info (without individual validator details for performance)
+            # Create basic member info (without individual validator
+            # details for performance)
             members = {}
             for member_addr in members_addrs:
                 members[member_addr] = ValidatorInfo(
@@ -1049,10 +1062,10 @@ class StakingService:
                 address=Web3.to_checksum_address(self.VALIDATORS_ADDRESS),
                 abi=self.VALIDATORS_ABI,
             )
-            election_contract = self.client.w3.eth.contract(
-                address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
-                abi=self.ELECTION_ABI,
-            )
+            # election_contract = self.client.w3.eth.contract(
+            #     address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
+            #     abi=self.ELECTION_ABI,
+            # )
             accounts_contract = self.client.w3.eth.contract(
                 address=Web3.to_checksum_address(self.ACCOUNTS_ADDRESS),
                 abi=self.ACCOUNTS_ABI,
@@ -1083,7 +1096,8 @@ class StakingService:
 
             call_index = 0
 
-            # Prepare multicall for each group (only group info and names, not votes if we have them already)
+            # Prepare multicall for each group (only group info and names,
+            # not votes if we have them already)
             for group_addr in group_addresses:
                 group_addr_checksum = Web3.to_checksum_address(group_addr)
 
