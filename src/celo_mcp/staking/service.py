@@ -1,7 +1,9 @@
 """Staking service for interacting with Celo staking contracts."""
 
 import asyncio
+import json
 import logging
+import os
 
 from web3 import Web3
 
@@ -116,43 +118,75 @@ class StakingService:
                 ],
                 "type": "function",
             },
-        ]
-
-        self.VALIDATORS_ABI = [
             {
                 "constant": True,
                 "inputs": [],
-                "name": "getRegisteredValidators",
-                "outputs": [{"name": "", "type": "address[]"}],
-                "type": "function",
-            },
-            {
-                "constant": True,
-                "inputs": [{"name": "validator", "type": "address"}],
-                "name": "getValidator",
+                "name": "getElectableValidators",
                 "outputs": [
-                    {"name": "ecdsaPublicKey", "type": "bytes"},
-                    {"name": "blsPublicKey", "type": "bytes"},
-                    {"name": "affiliation", "type": "address"},
-                    {"name": "score", "type": "uint256"},
-                    {"name": "signer", "type": "address"},
+                    {"name": "min", "type": "uint256"},
+                    {"name": "max", "type": "uint256"},
                 ],
                 "type": "function",
             },
             {
                 "constant": True,
                 "inputs": [{"name": "group", "type": "address"}],
-                "name": "getValidatorGroup",
-                "outputs": [
-                    {"name": "members", "type": "address[]"},
-                    {"name": "lastSlashed", "type": "uint256"},
-                    {"name": "nextCommission", "type": "uint256"},
-                    {"name": "nextCommissionBlock", "type": "uint256"},
-                    {"name": "slashInfo", "type": "uint256[]"},
-                ],
+                "name": "canReceiveVotes",
+                "outputs": [{"name": "", "type": "uint256"}],
                 "type": "function",
             },
         ]
+
+        # Load official Validators ABI from config file
+        config_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config")
+        validators_abi_path = os.path.join(config_dir, "Validators.json")
+
+        try:
+            with open(validators_abi_path, "r") as f:
+                validators_config = json.load(f)
+                self.VALIDATORS_ABI = validators_config["abi"]
+        except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
+            logger.warning(
+                f"Could not load Validators ABI from {validators_abi_path}: {e}"
+            )
+            # Fallback to minimal ABI if file loading fails
+            self.VALIDATORS_ABI = [
+                {
+                    "constant": True,
+                    "inputs": [],
+                    "name": "getRegisteredValidators",
+                    "outputs": [{"name": "", "type": "address[]"}],
+                    "type": "function",
+                },
+                {
+                    "constant": True,
+                    "inputs": [{"name": "validator", "type": "address"}],
+                    "name": "getValidator",
+                    "outputs": [
+                        {"name": "ecdsaPublicKey", "type": "bytes"},
+                        {"name": "blsPublicKey", "type": "bytes"},
+                        {"name": "affiliation", "type": "address"},
+                        {"name": "score", "type": "uint256"},
+                        {"name": "signer", "type": "address"},
+                    ],
+                    "type": "function",
+                },
+                {
+                    "constant": True,
+                    "inputs": [{"name": "group", "type": "address"}],
+                    "name": "getValidatorGroup",
+                    "outputs": [
+                        {"internalType": "address[]", "name": "", "type": "address[]"},
+                        {"internalType": "uint256", "name": "", "type": "uint256"},
+                        {"internalType": "uint256", "name": "", "type": "uint256"},
+                        {"internalType": "uint256", "name": "", "type": "uint256"},
+                        {"internalType": "uint256[]", "name": "", "type": "uint256[]"},
+                        {"internalType": "uint256", "name": "", "type": "uint256"},
+                        {"internalType": "uint256", "name": "", "type": "uint256"},
+                    ],
+                    "type": "function",
+                },
+            ]
 
         self.ACCOUNTS_ABI = [
             {
@@ -163,6 +197,77 @@ class StakingService:
                 "type": "function",
             }
         ]
+
+        self.LOCKED_GOLD_ABI = [
+            {
+                "constant": True,
+                "inputs": [],
+                "name": "getTotalLockedGold",
+                "outputs": [{"name": "", "type": "uint256"}],
+                "type": "function",
+            }
+        ]
+
+        # Determine the correct index for lastSlashed based on ABI structure
+        self._last_slashed_index = self._get_last_slashed_index()
+
+    def _get_last_slashed_index(self) -> int:
+        """
+        Determine the correct index for lastSlashed in getValidatorGroup response.
+
+        Returns:
+            int: The index where lastSlashed is located (1 for fallback ABI, 5 for official ABI)
+        """
+        # Find the getValidatorGroup function in the ABI
+        for func in self.VALIDATORS_ABI:
+            if func.get("name") == "getValidatorGroup":
+                outputs = func.get("outputs", [])
+                if len(outputs) == 5:
+                    # Fallback ABI structure: lastSlashed is at index 1
+                    return 1
+                elif len(outputs) == 7:
+                    # Official ABI structure: lastSlashed is at index 5
+                    return 5
+                break
+
+        # Default to 5 (official ABI structure)
+        logger.warning(
+            "Could not determine lastSlashed index from ABI, defaulting to 5"
+        )
+        return 5
+
+    async def _calculate_group_capacity(
+        self,
+        group_members: int,
+        total_locked_gold: int,
+        total_validators: int,
+        max_electable_validators: int | None = None,
+    ) -> int:
+        """
+        Calculate the voting capacity for a validator group based on Celo's formula.
+
+        This matches celo-mondo's implementation:
+        capacity = totalLocked * (groupMembers + 1) /
+                   min(maxElectableValidators, totalValidators)
+
+        Args:
+            group_members: Number of members in this validator group
+            total_locked_gold: Total locked CELO in the system
+                               (from LockedGold contract)
+            total_validators: Total number of registered validators
+            max_electable_validators: Maximum electable validators (default 110)
+        """
+        if max_electable_validators is None:
+            # Default to 110 if not provided (Celo mainnet default)
+            max_electable_validators = 110
+
+        # Calculate capacity based on Celo's voting cap formula
+        # This ensures each group can receive enough votes to elect
+        # all its members plus one
+        denominator = min(max_electable_validators, total_validators)
+        capacity = int((total_locked_gold * (group_members + 1)) / denominator)
+
+        return capacity
 
     async def get_staking_balances(self, address: str) -> StakingBalances:
         """Get staking balances for an address."""
@@ -700,6 +805,14 @@ class StakingService:
             address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
             abi=self.ELECTION_ABI,
         )
+        validators_contract = self.client.w3.eth.contract(
+            address=Web3.to_checksum_address(self.VALIDATORS_ADDRESS),
+            abi=self.VALIDATORS_ABI,
+        )
+        locked_gold_contract = self.client.w3.eth.contract(
+            address=Web3.to_checksum_address(self.LOCKED_GOLD_ADDRESS),
+            abi=self.LOCKED_GOLD_ABI,
+        )
 
         loop = asyncio.get_event_loop()
 
@@ -714,10 +827,53 @@ class StakingService:
             eligible_group_addresses = eligible_groups_data[0]
             eligible_group_votes = eligible_groups_data[1]
 
-            # Step 2: Get total votes
-            total_votes = await loop.run_in_executor(
-                None, election_contract.functions.getTotalVotes().call
+            # Step 2: Get total votes, locked gold, and validator count in parallel
+            (
+                total_votes,
+                total_locked_gold,
+                all_validators,
+                electable_validators_data,
+            ) = await asyncio.gather(
+                loop.run_in_executor(
+                    None, election_contract.functions.getTotalVotes().call
+                ),
+                loop.run_in_executor(
+                    None, locked_gold_contract.functions.getTotalLockedGold().call
+                ),
+                loop.run_in_executor(
+                    None, validators_contract.functions.getRegisteredValidators().call
+                ),
+                loop.run_in_executor(
+                    None, election_contract.functions.getElectableValidators().call
+                ),
+                return_exceptions=True,
             )
+
+            # Handle exceptions and set defaults
+            if isinstance(total_locked_gold, Exception):
+                logger.warning(
+                    f"Could not get total locked gold: {total_locked_gold}, "
+                    f"using total votes as fallback"
+                )
+                total_locked_gold = total_votes
+
+            if isinstance(all_validators, Exception):
+                logger.warning(
+                    f"Could not get all validators: {all_validators}, "
+                    f"using default count"
+                )
+                total_validators = 110  # Default fallback
+            else:
+                total_validators = len(all_validators)
+
+            if isinstance(electable_validators_data, Exception):
+                logger.warning(
+                    f"Could not get electable validators: "
+                    f"{electable_validators_data}, using default 110"
+                )
+                max_electable_validators = 110
+            else:
+                max_electable_validators = electable_validators_data[1]  # max value
 
             logger.debug(
                 f"Found {len(eligible_group_addresses)} eligible validator groups"
@@ -730,15 +886,35 @@ class StakingService:
                 f"getTotalVotesForEligibleValidatorGroups failed: {e}, "
                 f"falling back to getEligibleValidatorGroups"
             )
-            eligible_group_addresses, total_votes = await asyncio.gather(
-                loop.run_in_executor(
-                    None, election_contract.functions.getEligibleValidatorGroups().call
-                ),
-                loop.run_in_executor(
-                    None, election_contract.functions.getTotalVotes().call
-                ),
+            eligible_group_addresses, total_votes, total_locked_gold, all_validators = (
+                await asyncio.gather(
+                    loop.run_in_executor(
+                        None,
+                        election_contract.functions.getEligibleValidatorGroups().call,
+                    ),
+                    loop.run_in_executor(
+                        None, election_contract.functions.getTotalVotes().call
+                    ),
+                    loop.run_in_executor(
+                        None, locked_gold_contract.functions.getTotalLockedGold().call
+                    ),
+                    loop.run_in_executor(
+                        None,
+                        validators_contract.functions.getRegisteredValidators().call,
+                    ),
+                    return_exceptions=True,
+                )
             )
             eligible_group_votes = None
+
+            # Handle exceptions for fallback
+            if isinstance(total_locked_gold, Exception):
+                total_locked_gold = total_votes
+            if isinstance(all_validators, Exception):
+                total_validators = 110
+            else:
+                total_validators = len(all_validators)
+            max_electable_validators = 110
 
         # Step 3: Batch group details using multicall for the eligible groups
         group_data = await self._batch_validator_group_calls(eligible_group_addresses)
@@ -763,7 +939,11 @@ class StakingService:
                     continue
 
                 members_addrs = group_info[0]
-                last_slashed = group_info[1] if group_info[1] > 0 else None
+                last_slashed = (
+                    group_info[self._last_slashed_index] * 1000
+                    if group_info[self._last_slashed_index] > 0
+                    else None
+                )
 
                 # For list view, we'll include basic member info without
                 # detailed processing
@@ -784,10 +964,17 @@ class StakingService:
                         score_formatted="0%",
                     )
 
+                # Calculate proper capacity using Celo's voting cap formula
+                capacity = await self._calculate_group_capacity(
+                    num_members,
+                    total_locked_gold,
+                    total_validators,
+                    max_electable_validators,
+                )
+
                 # Simplified metrics for list view
                 num_elected = 1 if votes > 0 else 0  # Simplified assumption
                 avg_score = 0  # Will be calculated in detail view
-                capacity = int(votes * 1.1) if votes > 0 else 0
 
                 # Create formatted member details
                 members_formatted = [
@@ -905,6 +1092,7 @@ class StakingService:
                     group_addr,
                     eligible_group_votes[i] if eligible_group_votes else None,
                     loop,
+                    total_votes=total_votes,
                 )
                 if group:
                     groups.append(group)
@@ -917,7 +1105,7 @@ class StakingService:
         )
 
     async def _process_single_group_basic(
-        self, group_addr: str, votes: int | None, loop
+        self, group_addr: str, votes: int | None, loop, total_votes: int | None = None
     ) -> ValidatorGroup | None:
         """Process a single validator group with basic info for list view."""
         try:
@@ -929,15 +1117,20 @@ class StakingService:
                 address=Web3.to_checksum_address(self.ACCOUNTS_ADDRESS),
                 abi=self.ACCOUNTS_ABI,
             )
-            # election_contract = self.client.w3.eth.contract(
-            #     address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
-            #     abi=self.ELECTION_ABI,
-            # )
+            locked_gold_contract = self.client.w3.eth.contract(
+                address=Web3.to_checksum_address(self.LOCKED_GOLD_ADDRESS),
+                abi=self.LOCKED_GOLD_ABI,
+            )
 
             group_addr_checksum = Web3.to_checksum_address(group_addr)
 
             # Get basic group data
             if votes is None:
+                election_contract = self.client.w3.eth.contract(
+                    address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
+                    abi=self.ELECTION_ABI,
+                )
+
                 group_info, group_name, votes_result = await asyncio.gather(
                     loop.run_in_executor(
                         None,
@@ -980,7 +1173,11 @@ class StakingService:
                 group_name = f"{group_addr[:10]}..."
 
             members_addrs = group_info[0]
-            last_slashed = group_info[1] if group_info[1] > 0 else None
+            last_slashed = (
+                group_info[self._last_slashed_index] * 1000
+                if group_info[self._last_slashed_index] > 0
+                else None
+            )
             num_members = len(members_addrs)
 
             # Create basic member info (without individual validator
@@ -997,10 +1194,55 @@ class StakingService:
                     score_formatted="0%",
                 )
 
+            # Calculate metrics
+            num_members = len(members)
+            avg_score = 0
+
+            # Get data needed for capacity calculation
+            try:
+                total_locked_gold, all_validators = await asyncio.gather(
+                    loop.run_in_executor(
+                        None, locked_gold_contract.functions.getTotalLockedGold().call
+                    ),
+                    loop.run_in_executor(
+                        None,
+                        validators_contract.functions.getRegisteredValidators().call,
+                    ),
+                    return_exceptions=True,
+                )
+
+                if isinstance(total_locked_gold, Exception):
+                    logger.warning(
+                        f"Could not get total locked gold: {total_locked_gold}, "
+                        f"using default estimate"
+                    )
+                    total_locked_gold = total_votes if total_votes else votes * 100
+
+                if isinstance(all_validators, Exception):
+                    logger.warning(
+                        f"Could not get all validators: {all_validators}, "
+                        f"using default count"
+                    )
+                    total_validators = 110
+                else:
+                    total_validators = len(all_validators)
+
+            except Exception as e:
+                logger.warning(
+                    f"Could not get capacity calculation data: {e}, using defaults"
+                )
+                total_locked_gold = total_votes if total_votes else votes * 100
+                total_validators = 110
+
+            capacity = await self._calculate_group_capacity(
+                num_members,
+                total_locked_gold,
+                total_validators,
+                max_electable_validators=110,
+            )
+
             # Basic metrics
             num_elected = 1 if votes > 0 else 0
-            avg_score = 0
-            capacity = int(votes * 1.1) if votes > 0 else 0
 
             # Create formatted member details (first 5 only)
             members_formatted = [
@@ -1062,10 +1304,6 @@ class StakingService:
                 address=Web3.to_checksum_address(self.VALIDATORS_ADDRESS),
                 abi=self.VALIDATORS_ABI,
             )
-            # election_contract = self.client.w3.eth.contract(
-            #     address=Web3.to_checksum_address(self.ELECTION_ADDRESS),
-            #     abi=self.ELECTION_ABI,
-            # )
             accounts_contract = self.client.w3.eth.contract(
                 address=Web3.to_checksum_address(self.ACCOUNTS_ADDRESS),
                 abi=self.ACCOUNTS_ABI,
@@ -1261,7 +1499,11 @@ class StakingService:
         group_name = group_info_data["name"]
 
         members_addrs = group_info[0]
-        last_slashed = group_info[1] if group_info[1] > 0 else None
+        last_slashed = (
+            group_info[self._last_slashed_index] * 1000
+            if group_info[self._last_slashed_index] > 0
+            else None
+        )
 
         # Get eligible groups info and votes
         election_contract = self.client.w3.eth.contract(
@@ -1348,7 +1590,43 @@ class StakingService:
         # Calculate metrics
         num_members = len(members)
         avg_score = (total_score / num_members) if num_members > 0 else 0
-        capacity = int(votes * 1.1) if votes > 0 else 0
+
+        # Get data needed for capacity calculation
+        try:
+            total_locked_gold, all_validators = await asyncio.gather(
+                loop.run_in_executor(
+                    None, validators_contract.functions.getRegisteredValidators().call
+                ),
+                return_exceptions=True,
+            )
+
+            if isinstance(total_locked_gold, Exception):
+                logger.warning(
+                    f"Could not get total locked gold: {total_locked_gold}, using default estimate"
+                )
+                total_locked_gold = total_votes if total_votes else votes * 100
+
+            if isinstance(all_validators, Exception):
+                logger.warning(
+                    f"Could not get all validators: {all_validators}, using default count"
+                )
+                total_validators = 110
+            else:
+                total_validators = len(all_validators)
+
+        except Exception as e:
+            logger.warning(
+                f"Could not get capacity calculation data: {e}, using defaults"
+            )
+            total_locked_gold = total_votes if total_votes else votes * 100
+            total_validators = 110
+
+        capacity = await self._calculate_group_capacity(
+            num_members,
+            total_locked_gold,
+            total_validators,
+            max_electable_validators=110,
+        )
 
         # Create formatted member details
         members_formatted = [
@@ -1396,7 +1674,10 @@ class StakingService:
     async def _get_validator_group_details_individual(
         self, group_address: str
     ) -> ValidatorGroup:
-        """Get detailed information about a specific validator group using individual calls."""
+        """
+        Get detailed information about a specific validator group
+        using individual calls.
+        """
         # Get contract instances
         validators_contract = self.client.w3.eth.contract(
             address=Web3.to_checksum_address(self.VALIDATORS_ADDRESS),
@@ -1431,7 +1712,11 @@ class StakingService:
             raise ValueError(f"Validator group not found: {group_address}")
 
         members_addrs = group_info[0]
-        last_slashed = group_info[1] if group_info[1] > 0 else None
+        last_slashed = (
+            group_info[self._last_slashed_index] * 1000
+            if group_info[self._last_slashed_index] > 0
+            else None
+        )
 
         # Get group name and votes
         group_name, votes = await asyncio.gather(
@@ -1511,7 +1796,51 @@ class StakingService:
         # Calculate metrics
         num_members = len(members)
         avg_score = (total_score / num_members) if num_members > 0 else 0
-        capacity = int(votes * 1.1) if votes > 0 else 0
+
+        # Get data needed for capacity calculation
+        try:
+            locked_gold_contract = self.client.w3.eth.contract(
+                address=Web3.to_checksum_address(self.LOCKED_GOLD_ADDRESS),
+                abi=self.LOCKED_GOLD_ABI,
+            )
+
+            total_locked_gold, all_validators = await asyncio.gather(
+                loop.run_in_executor(
+                    None, locked_gold_contract.functions.getTotalLockedGold().call
+                ),
+                loop.run_in_executor(
+                    None, validators_contract.functions.getRegisteredValidators().call
+                ),
+                return_exceptions=True,
+            )
+
+            if isinstance(total_locked_gold, Exception):
+                logger.warning(
+                    f"Could not get total locked gold: {total_locked_gold}, using default estimate"
+                )
+                total_locked_gold = total_votes if total_votes else votes * 100
+
+            if isinstance(all_validators, Exception):
+                logger.warning(
+                    f"Could not get all validators: {all_validators}, using default count"
+                )
+                total_validators = 110
+            else:
+                total_validators = len(all_validators)
+
+        except Exception as e:
+            logger.warning(
+                f"Could not get capacity calculation data: {e}, using defaults"
+            )
+            total_locked_gold = total_votes if total_votes else votes * 100
+            total_validators = 110
+
+        capacity = await self._calculate_group_capacity(
+            num_members,
+            total_locked_gold,
+            total_validators,
+            max_electable_validators=110,
+        )
 
         # Create formatted member details
         members_formatted = [

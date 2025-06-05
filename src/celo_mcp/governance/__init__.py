@@ -6,8 +6,8 @@ from .models import (
     Proposal,
     ProposalDetailsResponse,
     ProposalMetadata,
-    ProposalStage,
     ProposalMetadataStatus,
+    ProposalStage,
     VoteAmounts,
     VoteType,
 )

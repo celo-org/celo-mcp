@@ -78,9 +78,7 @@ class ProposalMetadata(BaseModel):
     stage: ProposalStage = Field(description="Metadata stage")
     id: int | None = Field(description="On-chain proposal ID", default=None)
     url: str | None = Field(description="Discussion URL", default=None)
-    timestamp: int | None = Field(
-        description="Creation timestamp (ms)", default=None
-    )
+    timestamp: int | None = Field(description="Creation timestamp (ms)", default=None)
     timestamp_executed: int | None = Field(
         description="Execution timestamp (ms)", default=None
     )
@@ -116,9 +114,7 @@ class GovernanceProposalsResponse(BaseModel):
         description="Query execution time in seconds", default=None
     )
     sorting: str | None = Field(description="Sorting method applied", default=None)
-    pagination: dict | None = Field(
-        description="Pagination information", default=None
-    )
+    pagination: dict | None = Field(description="Pagination information", default=None)
     error: str | None = Field(description="Error message if any", default=None)
 
 
@@ -128,9 +124,7 @@ class ProposalDetailsResponse(BaseModel):
     proposal: MergedProposalData | None = Field(
         description="Proposal details", default=None
     )
-    content: str | None = Field(
-        description="Proposal markdown content", default=None
-    )
+    content: str | None = Field(description="Proposal markdown content", default=None)
     error: str | None = Field(description="Error message if any", default=None)
 
 

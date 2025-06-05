@@ -44,9 +44,7 @@ class StakingBalances(BaseModel):
     group_to_stake: GroupToStake = Field(description="Stakes by validator group")
 
     # Formatted fields
-    summary: dict[str, Any] | None = Field(
-        None, description="Human-readable summary"
-    )
+    summary: dict[str, Any] | None = Field(None, description="Human-readable summary")
     group_details: list[dict[str, Any]] | None = Field(
         None, description="Formatted group details"
     )
@@ -63,9 +61,7 @@ class ActivatableStakes(BaseModel):
     )
 
     # Formatted fields
-    summary: dict[str, Any] | None = Field(
-        None, description="Human-readable summary"
-    )
+    summary: dict[str, Any] | None = Field(None, description="Human-readable summary")
 
 
 class ValidatorStatus(str, Enum):
@@ -106,9 +102,7 @@ class ValidatorGroup(BaseModel):
     avg_score: float = Field(description="Average score of members")
 
     # Formatted fields
-    summary: dict[str, Any] | None = Field(
-        None, description="Human-readable summary"
-    )
+    summary: dict[str, Any] | None = Field(None, description="Human-readable summary")
     capacity_info: dict[str, Any] | None = Field(
         None, description="Capacity utilization info"
     )
@@ -162,9 +156,7 @@ class RewardHistory(BaseModel):
     period_end: int = Field(description="End timestamp of the period")
 
     # Formatted fields
-    summary: dict[str, Any] | None = Field(
-        None, description="Human-readable summary"
-    )
+    summary: dict[str, Any] | None = Field(None, description="Human-readable summary")
 
 
 class PaginationInfo(BaseModel):
