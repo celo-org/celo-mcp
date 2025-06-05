@@ -1,6 +1,6 @@
 [project]
 name = "celo_mcp"
-version = "0.3.0"
+version = "0.3.1"
 description = "A Model Context Protocol (MCP) server for Celo blockchain data access and functionality"
 readme = "README.md"
 authors = [
