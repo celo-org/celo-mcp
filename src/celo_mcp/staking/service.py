@@ -215,8 +215,12 @@ class StakingService:
         """
         Determine the correct index for lastSlashed in getValidatorGroup response.
 
+        Based on celo-mondo's proven implementation:
+        - 7-output ABI: lastSlashed is at index 6 (slashingMultiplier in some docs, but actually lastSlashed)
+        - 5-output ABI: lastSlashed is at index 1 (fallback ABI)
+
         Returns:
-            int: The index where lastSlashed is located (1 for fallback ABI, 5 for official ABI)
+            int: The index where lastSlashed is located
         """
         # Find the getValidatorGroup function in the ABI
         for func in self.VALIDATORS_ABI:
@@ -226,15 +230,15 @@ class StakingService:
                     # Fallback ABI structure: lastSlashed is at index 1
                     return 1
                 elif len(outputs) == 7:
-                    # Official ABI structure: lastSlashed is at index 5
-                    return 5
+                    # Official ABI structure: lastSlashed is at index 6 (verified by celo-mondo)
+                    return 6
                 break
 
-        # Default to 5 (official ABI structure)
+        # Default to 6 (official ABI structure)
         logger.warning(
-            "Could not determine lastSlashed index from ABI, defaulting to 5"
+            "Could not determine lastSlashed index from ABI, defaulting to 6 (celo-mondo compatible)"
         )
-        return 5
+        return 6
 
     async def _calculate_group_capacity(
         self,
