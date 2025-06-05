@@ -1,8 +1,8 @@
 """Utility modules for celo-mcp."""
 
 from .logging import setup_logging
-from .validators import validate_address, validate_block_number, validate_tx_hash
 from .multicall import MulticallService
+from .validators import validate_address, validate_block_number, validate_tx_hash
 
 __all__ = [
     "setup_logging",

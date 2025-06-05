@@ -1,7 +1,6 @@
 """Governance data models."""
 
 from enum import Enum
-from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -55,7 +54,7 @@ class Proposal(BaseModel):
     id: int = Field(description="Proposal ID")
     stage: ProposalStage = Field(description="Current proposal stage")
     timestamp: int = Field(description="Proposal creation timestamp (ms)")
-    expiry_timestamp: Optional[int] = Field(
+    expiry_timestamp: int | None = Field(
         description="Proposal expiry timestamp (ms)", default=None
     )
     url: str = Field(description="Discussion URL")
@@ -77,29 +76,29 @@ class ProposalMetadata(BaseModel):
     title: str = Field(description="Proposal title")
     author: str = Field(description="Proposal author")
     stage: ProposalStage = Field(description="Metadata stage")
-    id: Optional[int] = Field(description="On-chain proposal ID", default=None)
-    url: Optional[str] = Field(description="Discussion URL", default=None)
-    timestamp: Optional[int] = Field(
+    id: int | None = Field(description="On-chain proposal ID", default=None)
+    url: str | None = Field(description="Discussion URL", default=None)
+    timestamp: int | None = Field(
         description="Creation timestamp (ms)", default=None
     )
-    timestamp_executed: Optional[int] = Field(
+    timestamp_executed: int | None = Field(
         description="Execution timestamp (ms)", default=None
     )
-    votes: Optional[VoteAmounts] = Field(description="Vote totals", default=None)
+    votes: VoteAmounts | None = Field(description="Vote totals", default=None)
 
 
 class MergedProposalData(BaseModel):
     """Merged proposal data combining on-chain and metadata."""
 
     stage: ProposalStage = Field(description="Current proposal stage")
-    id: Optional[int] = Field(description="Proposal ID", default=None)
-    proposal: Optional[Proposal] = Field(
+    id: int | None = Field(description="Proposal ID", default=None)
+    proposal: Proposal | None = Field(
         description="On-chain proposal data", default=None
     )
-    metadata: Optional[ProposalMetadata] = Field(
+    metadata: ProposalMetadata | None = Field(
         description="GitHub metadata", default=None
     )
-    history: Optional[List[int]] = Field(
+    history: list[int] | None = Field(
         description="Historical proposal IDs", default=None
     )
 
@@ -107,32 +106,32 @@ class MergedProposalData(BaseModel):
 class GovernanceProposalsResponse(BaseModel):
     """Response for governance proposals query with celo-mondo style formatting."""
 
-    proposals: List[Dict] = Field(description="List of formatted governance proposals")
+    proposals: list[dict] = Field(description="List of formatted governance proposals")
     total_count: int = Field(description="Total number of proposals returned")
     include_metadata: bool = Field(description="Whether metadata was included")
     include_inactive: bool = Field(
         description="Whether inactive proposals were included"
     )
-    execution_time_seconds: Optional[float] = Field(
+    execution_time_seconds: float | None = Field(
         description="Query execution time in seconds", default=None
     )
-    sorting: Optional[str] = Field(description="Sorting method applied", default=None)
-    pagination: Optional[Dict] = Field(
+    sorting: str | None = Field(description="Sorting method applied", default=None)
+    pagination: dict | None = Field(
         description="Pagination information", default=None
     )
-    error: Optional[str] = Field(description="Error message if any", default=None)
+    error: str | None = Field(description="Error message if any", default=None)
 
 
 class ProposalDetailsResponse(BaseModel):
     """Response for individual proposal details."""
 
-    proposal: Optional[MergedProposalData] = Field(
+    proposal: MergedProposalData | None = Field(
         description="Proposal details", default=None
     )
-    content: Optional[str] = Field(
+    content: str | None = Field(
         description="Proposal markdown content", default=None
     )
-    error: Optional[str] = Field(description="Error message if any", default=None)
+    error: str | None = Field(description="Error message if any", default=None)
 
 
 # Constants

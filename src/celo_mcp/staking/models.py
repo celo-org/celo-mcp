@@ -1,7 +1,8 @@
 """Data models for staking operations."""
 
 from enum import Enum
-from typing import Dict, List, Optional, Any
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -15,13 +16,13 @@ class StakeInfo(BaseModel):
     )
 
     # Formatted fields
-    active_formatted: Optional[str] = Field(
+    active_formatted: str | None = Field(
         None, description="Human-readable active stake amount"
     )
-    pending_formatted: Optional[str] = Field(
+    pending_formatted: str | None = Field(
         None, description="Human-readable pending stake amount"
     )
-    total_formatted: Optional[str] = Field(
+    total_formatted: str | None = Field(
         None, description="Human-readable total stake amount"
     )
 
@@ -29,7 +30,7 @@ class StakeInfo(BaseModel):
 class GroupToStake(BaseModel):
     """Mapping of validator group addresses to stake information."""
 
-    stakes: Dict[str, StakeInfo] = Field(
+    stakes: dict[str, StakeInfo] = Field(
         description="Mapping of group address to stake info"
     )
 
@@ -43,10 +44,10 @@ class StakingBalances(BaseModel):
     group_to_stake: GroupToStake = Field(description="Stakes by validator group")
 
     # Formatted fields
-    summary: Optional[Dict[str, Any]] = Field(
+    summary: dict[str, Any] | None = Field(
         None, description="Human-readable summary"
     )
-    group_details: Optional[List[Dict[str, Any]]] = Field(
+    group_details: list[dict[str, Any]] | None = Field(
         None, description="Formatted group details"
     )
 
@@ -54,15 +55,15 @@ class StakingBalances(BaseModel):
 class ActivatableStakes(BaseModel):
     """Information about stakes that can be activated."""
 
-    activatable_groups: List[str] = Field(
+    activatable_groups: list[str] = Field(
         description="List of groups with activatable stakes"
     )
-    group_to_is_activatable: Dict[str, bool] = Field(
+    group_to_is_activatable: dict[str, bool] = Field(
         description="Mapping of group address to activation status"
     )
 
     # Formatted fields
-    summary: Optional[Dict[str, Any]] = Field(
+    summary: dict[str, Any] | None = Field(
         None, description="Human-readable summary"
     )
 
@@ -85,8 +86,8 @@ class ValidatorInfo(BaseModel):
     status: ValidatorStatus = Field(description="Validator status")
 
     # Formatted fields
-    address_formatted: Optional[str] = Field(None, description="Short-form address")
-    score_formatted: Optional[str] = Field(None, description="Score as percentage")
+    address_formatted: str | None = Field(None, description="Short-form address")
+    score_formatted: str | None = Field(None, description="Score as percentage")
 
 
 class ValidatorGroup(BaseModel):
@@ -98,20 +99,20 @@ class ValidatorGroup(BaseModel):
     eligible: bool = Field(description="Whether the group is eligible for election")
     capacity: int = Field(description="Group capacity in wei")
     votes: int = Field(description="Current votes for the group in wei")
-    last_slashed: Optional[int] = Field(None, description="Last slashed timestamp")
-    members: Dict[str, ValidatorInfo] = Field(description="Validator members")
+    last_slashed: int | None = Field(None, description="Last slashed timestamp")
+    members: dict[str, ValidatorInfo] = Field(description="Validator members")
     num_elected: int = Field(description="Number of elected validators")
     num_members: int = Field(description="Total number of members")
     avg_score: float = Field(description="Average score of members")
 
     # Formatted fields
-    summary: Optional[Dict[str, Any]] = Field(
+    summary: dict[str, Any] | None = Field(
         None, description="Human-readable summary"
     )
-    capacity_info: Optional[Dict[str, Any]] = Field(
+    capacity_info: dict[str, Any] | None = Field(
         None, description="Capacity utilization info"
     )
-    members_formatted: Optional[List[Dict[str, Any]]] = Field(
+    members_formatted: list[dict[str, Any]] | None = Field(
         None, description="Formatted member details"
     )
 
@@ -135,8 +136,8 @@ class StakeEvent(BaseModel):
     transaction_hash: str = Field(description="Transaction hash")
 
     # Formatted fields
-    amount_formatted: Optional[str] = Field(None, description="Human-readable amount")
-    time_formatted: Optional[str] = Field(None, description="Human-readable time")
+    amount_formatted: str | None = Field(None, description="Human-readable amount")
+    time_formatted: str | None = Field(None, description="Human-readable time")
 
 
 class RewardEntry(BaseModel):
@@ -148,20 +149,20 @@ class RewardEntry(BaseModel):
     timestamp: int = Field(description="Reward timestamp")
 
     # Formatted fields
-    amount_formatted: Optional[str] = Field(None, description="Human-readable amount")
-    time_formatted: Optional[str] = Field(None, description="Human-readable time")
+    amount_formatted: str | None = Field(None, description="Human-readable amount")
+    time_formatted: str | None = Field(None, description="Human-readable time")
 
 
 class RewardHistory(BaseModel):
     """Historical reward data."""
 
-    rewards: List[RewardEntry] = Field(description="List of reward entries")
+    rewards: list[RewardEntry] = Field(description="List of reward entries")
     total_rewards: int = Field(description="Total rewards earned in wei")
     period_start: int = Field(description="Start timestamp of the period")
     period_end: int = Field(description="End timestamp of the period")
 
     # Formatted fields
-    summary: Optional[Dict[str, Any]] = Field(
+    summary: dict[str, Any] | None = Field(
         None, description="Human-readable summary"
     )
 
@@ -180,6 +181,6 @@ class PaginationInfo(BaseModel):
 class PaginatedValidatorGroups(BaseModel):
     """Paginated response for validator groups."""
 
-    groups: List[ValidatorGroup] = Field(description="List of validator groups")
+    groups: list[ValidatorGroup] = Field(description="List of validator groups")
     pagination: PaginationInfo = Field(description="Pagination information")
-    summary: Optional[Dict[str, Any]] = Field(None, description="Summary information")
+    summary: dict[str, Any] | None = Field(None, description="Summary information")

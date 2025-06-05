@@ -1,11 +1,9 @@
 """Formatting utilities for governance data to match celo-mondo frontend formatting."""
 
 from datetime import datetime
-from typing import Dict, Optional
-from decimal import Decimal, ROUND_FLOOR
+from decimal import ROUND_FLOOR, Decimal
 
-from .models import VoteAmounts, VoteType, ProposalStage, MergedProposalData
-
+from .models import MergedProposalData, ProposalStage, VoteAmounts, VoteType
 
 # Constants matching celo-mondo
 DEFAULT_TOKEN_DECIMALS = 18
@@ -23,7 +21,7 @@ def from_wei(value: int, decimals: int = DEFAULT_TOKEN_DECIMALS) -> float:
 def from_wei_rounded(
     value: int,
     decimals: int = DEFAULT_TOKEN_DECIMALS,
-    display_decimals: Optional[int] = None,
+    display_decimals: int | None = None,
 ) -> str:
     """Convert Wei to Ether with smart rounding."""
     if not value:
@@ -93,8 +91,8 @@ def format_relative_time(timestamp: int) -> str:
 
 
 def format_expiry_time(
-    expiry_timestamp: Optional[int], executed_timestamp: Optional[int] = None
-) -> Optional[str]:
+    expiry_timestamp: int | None, executed_timestamp: int | None = None
+) -> str | None:
     """Format expiry/execution time like celo-mondo."""
     now = datetime.now().timestamp() * 1000
 
@@ -124,7 +122,7 @@ def to_title_case(text: str) -> str:
     return text.title() if text else ""
 
 
-def format_vote_data(votes: VoteAmounts) -> Dict[str, any]:
+def format_vote_data(votes: VoteAmounts) -> dict[str, any]:
     """Format vote data with percentages like celo-mondo."""
     total = votes.yes + votes.no + votes.abstain
     if not total:
@@ -156,7 +154,7 @@ def format_vote_data(votes: VoteAmounts) -> Dict[str, any]:
     }
 
 
-def get_largest_vote_type(votes: VoteAmounts) -> Dict[str, any]:
+def get_largest_vote_type(votes: VoteAmounts) -> dict[str, any]:
     """Get the vote type with the largest amount."""
     vote_amounts = {
         VoteType.YES: votes.yes,
@@ -175,7 +173,7 @@ def get_largest_vote_type(votes: VoteAmounts) -> Dict[str, any]:
     return {"type": max_type, "amount": max_value}
 
 
-def format_proposal_summary(proposal_data: MergedProposalData) -> Dict[str, any]:
+def format_proposal_summary(proposal_data: MergedProposalData) -> dict[str, any]:
     """Format a complete proposal summary like celo-mondo frontend."""
     proposal = proposal_data.proposal
     metadata = proposal_data.metadata

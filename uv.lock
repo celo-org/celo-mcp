@@ -300,7 +300,7 @@ wheels = [
 
 [[package]]
 name = "celo-mcp"
-version = "0.1.9"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "asyncio-throttle" },
@@ -312,6 +312,9 @@ dependencies = [
     { name = "mcp" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "requests" },
+    { name = "urllib3" },
     { name = "web3" },
 ]
 
@@ -341,7 +344,10 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
+    { name = "urllib3", specifier = ">=2.0.0" },
     { name = "web3", specifier = ">=7.0.0" },
 ]
 provides-extras = ["dev"]

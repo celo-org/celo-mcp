@@ -1,7 +1,6 @@
 """NFT service for ERC-721 and ERC-1155 operations."""
 
 import asyncio
-import json
 import logging
 from typing import Any, Literal
 

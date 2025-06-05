@@ -1,6 +1,7 @@
 """Token-related data models."""
 
-from typing import Dict, Any
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -94,7 +95,7 @@ class StableTokenBalances(BaseModel):
     native_celo_balance: TokenBalance | None = Field(
         None, description="Native CELO balance"
     )
-    summary: Dict[str, Any] | None = Field(None, description="Summary information")
+    summary: dict[str, Any] | None = Field(None, description="Summary information")
     total_tokens_checked: int = Field(..., description="Total number of tokens checked")
     successful_tokens: int = Field(
         ..., description="Number of successfully fetched tokens"

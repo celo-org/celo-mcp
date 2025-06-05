@@ -2,35 +2,30 @@
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, Tuple
+
 from web3 import Web3
 
 from ..blockchain_data import CeloClient
 from ..utils import validate_address
-from ..utils.multicall import MulticallService
 from ..utils.formatting import (
-    format_celo_amount_with_symbol,
     format_address,
-    format_score_percentage,
-    format_validator_group_summary,
-    format_staking_summary,
     format_capacity_info,
-    get_human_readable_time_string,
+    format_celo_amount_with_symbol,
+    format_score_percentage,
+    format_staking_summary,
+    format_validator_group_summary,
 )
+from ..utils.multicall import MulticallService
 from .models import (
-    StakingBalances,
-    GroupToStake,
-    StakeInfo,
     ActivatableStakes,
+    GroupToStake,
+    PaginatedValidatorGroups,
+    PaginationInfo,
+    StakeInfo,
+    StakingBalances,
     ValidatorGroup,
     ValidatorInfo,
     ValidatorStatus,
-    StakeEvent,
-    StakeEventType,
-    RewardHistory,
-    RewardEntry,
-    PaginatedValidatorGroups,
-    PaginationInfo,
 )
 
 logger = logging.getLogger(__name__)
@@ -460,7 +455,7 @@ class StakingService:
         )
 
     async def get_activatable_stakes(
-        self, address: str, group_to_stake: Optional[Dict[str, StakeInfo]] = None
+        self, address: str, group_to_stake: dict[str, StakeInfo] | None = None
     ) -> ActivatableStakes:
         """Get information about stakes that can be activated."""
         if not validate_address(address):
@@ -484,7 +479,7 @@ class StakingService:
             )
 
     async def _get_activatable_stakes_multicall(
-        self, address: str, group_to_stake: Optional[Dict[str, StakeInfo]] = None
+        self, address: str, group_to_stake: dict[str, StakeInfo] | None = None
     ) -> ActivatableStakes:
         """Get activatable stakes using multicall for better performance."""
         if group_to_stake is None:
@@ -579,7 +574,7 @@ class StakingService:
         )
 
     async def _get_activatable_stakes_individual(
-        self, address: str, group_to_stake: Optional[Dict[str, StakeInfo]] = None
+        self, address: str, group_to_stake: dict[str, StakeInfo] | None = None
     ) -> ActivatableStakes:
         """Individual get_activatable_stakes implementation using separate contract calls."""
         if group_to_stake is None:
@@ -658,10 +653,10 @@ class StakingService:
 
     async def get_validator_groups(
         self,
-        page: Optional[int] = None,
+        page: int | None = None,
         page_size: int = 10,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> PaginatedValidatorGroups:
         """Get information about all validator groups."""
         try:
@@ -683,10 +678,10 @@ class StakingService:
 
     async def _get_validator_groups_multicall(
         self,
-        page: Optional[int] = None,
+        page: int | None = None,
         page_size: int = 10,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> PaginatedValidatorGroups:
         """Optimized get_validator_groups using Mondo's approach with getTotalVotesForEligibleValidatorGroups."""
         # Get contract instances
@@ -842,10 +837,10 @@ class StakingService:
 
     async def _get_validator_groups_individual(
         self,
-        page: Optional[int] = None,
+        page: int | None = None,
         page_size: int = 10,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> PaginatedValidatorGroups:
         """Individual get_validator_groups implementation using separate contract calls."""
         # Get contract instances
@@ -908,8 +903,8 @@ class StakingService:
         )
 
     async def _process_single_group_basic(
-        self, group_addr: str, votes: Optional[int], loop
-    ) -> Optional[ValidatorGroup]:
+        self, group_addr: str, votes: int | None, loop
+    ) -> ValidatorGroup | None:
         """Process a single validator group with basic info for list view."""
         try:
             validators_contract = self.client.w3.eth.contract(
@@ -1040,8 +1035,8 @@ class StakingService:
             return None
 
     async def _batch_validator_group_calls(
-        self, group_addresses: List[str]
-    ) -> Dict[str, Dict[str, any]]:
+        self, group_addresses: list[str]
+    ) -> dict[str, dict[str, any]]:
         """Batch validator group calls using multicall to optimize performance."""
         if not self._use_multicall or not group_addresses:
             return {}
@@ -1159,12 +1154,12 @@ class StakingService:
 
     def _paginate_groups(
         self,
-        groups: List[ValidatorGroup],
+        groups: list[ValidatorGroup],
         total_votes: int,
-        page: Optional[int] = None,
+        page: int | None = None,
         page_size: int = 10,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> PaginatedValidatorGroups:
         """Helper method to paginate validator groups."""
         total_groups = len(groups)
@@ -1551,7 +1546,7 @@ class StakingService:
             members_formatted=members_formatted,
         )
 
-    async def get_total_staking_info(self) -> Dict[str, int]:
+    async def get_total_staking_info(self) -> dict[str, int]:
         """Get total staking information across the network."""
         try:
             election_contract = self.client.w3.eth.contract(

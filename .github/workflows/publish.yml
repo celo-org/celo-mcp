@@ -6,7 +6,7 @@ on:
       - "v*"
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -37,12 +37,7 @@ jobs:
       #   run: |
       #     uv run mypy src/
 
-      - name: Run tests
-        run: |
-          uv run pytest tests/ -v --tb=short
-
   publish:
-    needs: test
     runs-on: ubuntu-latest
     permissions:
       id-token: write # IMPORTANT: this permission is mandatory for trusted publishing

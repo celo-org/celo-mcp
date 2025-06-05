@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from mcp.server import Server, FastMCP
+from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 

@@ -1,9 +1,9 @@
 """Formatting utilities for human-readable output matching celo-mondo frontend."""
 
-from datetime import datetime, timezone
-from decimal import Decimal, ROUND_FLOOR
-from typing import Optional, Union, Dict, Any
 import math
+from datetime import UTC, datetime
+from decimal import ROUND_FLOOR, Decimal
+from typing import Any
 
 # Constants matching celo-mondo
 DEFAULT_TOKEN_DECIMALS = 18
@@ -12,7 +12,7 @@ WEI_PER_ETHER = 10**18
 
 
 def from_wei(
-    value: Union[int, str, None], decimals: int = DEFAULT_TOKEN_DECIMALS
+    value: int | str | None, decimals: int = DEFAULT_TOKEN_DECIMALS
 ) -> float:
     """Convert Wei value to Ether value."""
     if not value:
@@ -21,9 +21,9 @@ def from_wei(
 
 
 def from_wei_rounded(
-    value: Union[int, str, None],
+    value: int | str | None,
     decimals: int = DEFAULT_TOKEN_DECIMALS,
-    display_decimals: Optional[int] = None,
+    display_decimals: int | None = None,
 ) -> str:
     """Convert Wei to Ether with smart rounding like celo-mondo."""
     if not value:
@@ -51,7 +51,7 @@ def from_wei_rounded(
 
 
 def format_number_string(
-    value: Union[int, float, str, None], decimals: int = 0, is_wei: bool = False
+    value: int | float | str | None, decimals: int = 0, is_wei: bool = False
 ) -> str:
     """Format number with commas and proper decimals, matching Mondo's formatNumberString."""
     if value is None:
@@ -94,7 +94,7 @@ def format_number_with_commas(value: str) -> str:
 
 
 def format_percentage(
-    numerator: Union[int, str], denominator: Union[int, str]
+    numerator: int | str, denominator: int | str
 ) -> float:
     """Calculate percentage with proper rounding."""
     if not denominator or float(denominator) == 0:
@@ -102,7 +102,7 @@ def format_percentage(
     return round((float(numerator) / float(denominator)) * 100, 2)
 
 
-def format_large_number(value: Union[int, float]) -> str:
+def format_large_number(value: int | float) -> str:
     """Format large numbers with K, M, B suffixes."""
     if not value:
         return "0"
@@ -120,7 +120,7 @@ def format_large_number(value: Union[int, float]) -> str:
         return f"{sign}{abs_value:,.0f}"
 
 
-def get_human_readable_time_string(timestamp: Union[int, float]) -> str:
+def get_human_readable_time_string(timestamp: int | float) -> str:
     """Get human readable time string matching Mondo's implementation."""
     if timestamp <= 0:
         return ""
@@ -155,7 +155,7 @@ def get_human_readable_time_string(timestamp: Union[int, float]) -> str:
     return f"on {date.strftime('%Y-%m-%d')}"
 
 
-def get_human_readable_duration(ms: int, min_sec: Optional[int] = None) -> str:
+def get_human_readable_duration(ms: int, min_sec: int | None = None) -> str:
     """Get human readable duration matching Mondo's implementation."""
     seconds = round(ms / 1000)
 
@@ -177,7 +177,7 @@ def get_human_readable_duration(ms: int, min_sec: Optional[int] = None) -> str:
     return f"{days} {'day' if days == 1 else 'days'}"
 
 
-def get_full_date_string(timestamp: Union[int, float]) -> str:
+def get_full_date_string(timestamp: int | float) -> str:
     """Get full date string with time zone matching Mondo's formatter."""
     if not timestamp:
         return ""
@@ -188,7 +188,7 @@ def get_full_date_string(timestamp: Union[int, float]) -> str:
     else:
         timestamp_ms = int(timestamp)
 
-    dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=timezone.utc)
+    dt = datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC)
 
     # Format similar to Mondo's Intl.DateTimeFormat
     return dt.strftime("%a %b %d, %H:%M UTC")
@@ -201,7 +201,7 @@ def format_address(address: str, chars: int = 6) -> str:
     return f"{address[:chars]}...{address[-chars:]}"
 
 
-def format_score_percentage(score: Union[int, str], decimals: int = 22) -> str:
+def format_score_percentage(score: int | str, decimals: int = 22) -> str:
     """Format validator score as percentage (Mondo uses 22 decimals for score)."""
     if not score:
         return "0%"
@@ -212,7 +212,7 @@ def format_score_percentage(score: Union[int, str], decimals: int = 22) -> str:
 
 
 def format_celo_amount_with_symbol(
-    amount: Union[int, str, None],
+    amount: int | str | None,
     decimals: int = 2,
     is_wei: bool = True,
     symbol: str = "CELO",
@@ -227,8 +227,8 @@ def format_celo_amount_with_symbol(
 
 
 def format_capacity_info(
-    votes: Union[int, str], capacity: Union[int, str]
-) -> Dict[str, Any]:
+    votes: int | str, capacity: int | str
+) -> dict[str, Any]:
     """Format capacity information showing utilization."""
     votes_num = float(votes) if votes else 0
     capacity_num = float(capacity) if capacity else 0
@@ -248,7 +248,7 @@ def format_capacity_info(
     }
 
 
-def format_validator_group_summary(group_data: Dict[str, Any]) -> Dict[str, Any]:
+def format_validator_group_summary(group_data: dict[str, Any]) -> dict[str, Any]:
     """Format validator group data for human-readable display."""
     return {
         "name": group_data.get("name", "Unknown Group"),
@@ -270,7 +270,7 @@ def format_validator_group_summary(group_data: Dict[str, Any]) -> Dict[str, Any]
     }
 
 
-def format_staking_summary(staking_data: Dict[str, Any]) -> Dict[str, Any]:
+def format_staking_summary(staking_data: dict[str, Any]) -> dict[str, Any]:
     """Format staking balance data for human-readable display."""
     return {
         "total_staked": format_celo_amount_with_symbol(

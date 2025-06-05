@@ -2,14 +2,13 @@
 
 import asyncio
 import logging
-from typing import Any
 
 from web3 import Web3
 
 from ..blockchain_data import CeloClient
 from ..utils import validate_address
 from ..utils.multicall import MulticallService
-from .models import TokenBalance, TokenInfo, StableTokenBalances
+from .models import StableTokenBalances, TokenBalance, TokenInfo
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +197,7 @@ class TokenService:
                 name, symbol, decimals, total_supply = await asyncio.wait_for(
                     get_contract_data(), timeout=15.0
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error(f"Timeout getting token info for {token_address}")
                 raise TimeoutError(f"Token info request timed out for {token_address}")
 
@@ -240,7 +239,7 @@ class TokenService:
                 token_info = await asyncio.wait_for(
                     self.get_token_info(token_address), timeout=10.0
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error(
                     f"Timeout getting token info for balance check: {token_address}"
                 )
@@ -266,9 +265,9 @@ class TokenService:
                     ),
                     timeout=10.0,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error(f"Timeout getting token balance for {token_address}")
-                raise TimeoutError(f"Token balance request timed out")
+                raise TimeoutError("Token balance request timed out")
 
             # Format balance
             formatted_balance = str(balance / (10**token_info.decimals))
@@ -360,7 +359,7 @@ class TokenService:
                     if result is not None and not isinstance(result, Exception):
                         balances.append(result)
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error(f"Timeout getting Celo balances for {account_address}")
                 # Return native CELO balance at minimum
                 try:

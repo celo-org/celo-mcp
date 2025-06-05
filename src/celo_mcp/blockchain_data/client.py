@@ -5,9 +5,9 @@ import logging
 from datetime import datetime
 from typing import Any
 
+import requests
 from web3 import Web3
 from web3.middleware import ExtraDataToPOAMiddleware
-import requests
 
 from ..config import get_settings
 from ..utils import validate_address, validate_block_number, validate_tx_hash
@@ -288,7 +288,7 @@ class CeloClient:
                 balance, nonce, code = await asyncio.wait_for(
                     get_account_data(), timeout=10.0
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error(f"Timeout getting account data for {address}")
                 raise TimeoutError(f"Account data request timed out for {address}")
 

@@ -1,6 +1,5 @@
 """Contract addresses and configurations for Celo blockchain."""
 
-from typing import Dict
 
 # Contract addresses for different networks
 MAINNET_ADDRESSES = {
@@ -43,6 +42,6 @@ def get_contract_address(contract_name: str, network: str = "mainnet") -> str:
     return addresses[contract_name]
 
 
-def get_all_addresses(network: str = "mainnet") -> Dict[str, str]:
+def get_all_addresses(network: str = "mainnet") -> dict[str, str]:
     """Get all contract addresses for the specified network."""
     return ALFAJORES_ADDRESSES if network.lower() == "alfajores" else MAINNET_ADDRESSES

@@ -4,11 +4,9 @@ import asyncio
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 
-from web3 import Web3
 from web3.contract import Contract
-from web3.types import Address
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +26,7 @@ class MulticallService:
         """Load the Multicall3 contract."""
         # Load ABI from the JSON file
         multicall_abi_path = Path(__file__).parent / "multicall3.json"
-        with open(multicall_abi_path, "r") as f:
+        with open(multicall_abi_path) as f:
             multicall_abi = json.load(f)
 
         return self.client.w3.eth.contract(
@@ -36,7 +34,7 @@ class MulticallService:
         )
 
     def encode_function_call(
-        self, contract: Contract, function_name: str, args: List[Any]
+        self, contract: Contract, function_name: str, args: list[Any]
     ) -> bytes:
         """Encode a function call for use in multicall."""
         try:
@@ -63,7 +61,7 @@ class MulticallService:
             logger.error(f"Error decoding function result {function_name}: {e}")
             raise
 
-    async def aggregate3(self, calls: List[Dict[str, Any]]) -> List[Tuple[bool, Any]]:
+    async def aggregate3(self, calls: list[dict[str, Any]]) -> list[tuple[bool, Any]]:
         """
         Execute multiple calls using Multicall3.aggregate3.
 
@@ -119,8 +117,8 @@ class MulticallService:
             raise
 
     async def batch_governance_calls(
-        self, governance_contract: Contract, proposal_ids: List[int]
-    ) -> List[Dict[str, Any]]:
+        self, governance_contract: Contract, proposal_ids: list[int]
+    ) -> list[dict[str, Any]]:
         """
         Batch multiple governance contract calls for multiple proposals.
 

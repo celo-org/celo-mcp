@@ -1,15 +1,15 @@
 """Staking module for Celo MCP server."""
 
 from .models import (
-    StakingBalances,
-    GroupToStake,
-    StakeInfo,
     ActivatableStakes,
-    ValidatorGroup,
-    ValidatorInfo,
+    GroupToStake,
+    RewardHistory,
     StakeEvent,
     StakeEventType,
-    RewardHistory,
+    StakeInfo,
+    StakingBalances,
+    ValidatorGroup,
+    ValidatorInfo,
 )
 from .service import StakingService
 

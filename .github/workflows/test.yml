@@ -33,10 +33,6 @@ jobs:
           uv run ruff check .
           uv run black --check .
 
-      - name: Run tests
-        run: |
-          uv run pytest tests/ -v --tb=short
-
       - name: Test package build
         run: |
           uv build

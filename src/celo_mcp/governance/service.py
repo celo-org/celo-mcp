@@ -1,26 +1,23 @@
 """Governance service for fetching and processing Celo governance data."""
 
 import asyncio
-import json
 import logging
 import re
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import httpx
 import yaml
-from web3 import Web3
-from web3.types import Address
 
 from ..config.contracts import get_governance_address
 from ..utils.multicall import MulticallService
+from .formatting import (
+    format_proposal_summary,
+    sort_proposals_like_mondo,
+)
 from .models import (
     ACTIVE_PROPOSAL_STAGES,
     APPROVAL_STAGE_EXPIRY_TIME,
     EXECUTION_STAGE_EXPIRY_TIME,
-    FAILED_PROPOSAL_STAGES,
-    METADATA_STATUS_TO_STAGE,
     QUEUED_STAGE_EXPIRY_TIME,
     REFERENDUM_STAGE_EXPIRY_TIME,
     GovernanceProposalsResponse,
@@ -28,20 +25,14 @@ from .models import (
     Proposal,
     ProposalDetailsResponse,
     ProposalMetadata,
-    ProposalMetadataStatus,
     ProposalStage,
     VoteAmounts,
-    VoteType,
-)
-from .formatting import (
-    format_proposal_summary,
-    sort_proposals_like_mondo,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def extract_cgp_from_url(proposal_url: str) -> Optional[int]:
+def extract_cgp_from_url(proposal_url: str) -> int | None:
     """Extract CGP number from GitHub URL"""
     if not proposal_url:
         return None
@@ -50,7 +41,7 @@ def extract_cgp_from_url(proposal_url: str) -> Optional[int]:
     return int(match.group(1)) if match else None
 
 
-def parse_cgp_file(content: str) -> Tuple[Optional[Dict], str]:
+def parse_cgp_file(content: str) -> tuple[dict | None, str]:
     """Parse CGP file with YAML frontmatter"""
     # Extract YAML frontmatter
     frontmatter_match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", content, re.DOTALL)
@@ -67,7 +58,7 @@ def parse_cgp_file(content: str) -> Tuple[Optional[Dict], str]:
         return None, content
 
 
-async def fetch_cgp_content(cgp_number: int) -> Tuple[Optional[Dict], Optional[str]]:
+async def fetch_cgp_content(cgp_number: int) -> tuple[dict | None, str | None]:
     """Fetch CGP content directly from raw GitHub"""
     raw_url = f"https://raw.githubusercontent.com/celo-org/governance/main/CGPs/cgp-{cgp_number:04d}.md"
 
@@ -89,7 +80,7 @@ async def fetch_cgp_content(cgp_number: int) -> Tuple[Optional[Dict], Optional[s
         return None, None
 
 
-async def fetch_cgp_header_only(cgp_number: int) -> Tuple[Optional[Dict], None]:
+async def fetch_cgp_header_only(cgp_number: int) -> tuple[dict | None, None]:
     """Fetch only the YAML frontmatter header from CGP file for better performance."""
     raw_url = f"https://raw.githubusercontent.com/celo-org/governance/main/CGPs/cgp-{cgp_number:04d}.md"
 
@@ -148,7 +139,7 @@ class GovernanceService:
         self._multicall_service = MulticallService(client)
         self._use_multicall = True  # Flag to enable/disable multicall
 
-    def _load_governance_abi(self) -> List[Dict]:
+    def _load_governance_abi(self) -> list[dict]:
         """Load the governance contract ABI."""
         # This is a simplified ABI with the functions we need
         # In a real implementation, you'd load this from @celo/abis
@@ -209,10 +200,10 @@ class GovernanceService:
         self,
         include_inactive: bool = True,
         include_metadata: bool = False,
-        page: Optional[int] = None,
+        page: int | None = None,
         page_size: int = 15,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> GovernanceProposalsResponse:
         """
         Get governance proposals with celo-mondo style formatting, sorting, and pagination.
@@ -575,7 +566,7 @@ class GovernanceService:
             logger.error(f"Error in get_proposal_details: {e}")
             return ProposalDetailsResponse(proposal=None, content=None, error=str(e))
 
-    async def _fetch_single_proposal(self, proposal_id: int) -> Optional[Proposal]:
+    async def _fetch_single_proposal(self, proposal_id: int) -> Proposal | None:
         """Fetch a single proposal's data from on-chain."""
         governance_address = get_governance_address()
 
@@ -654,7 +645,7 @@ class GovernanceService:
             logger.error(f"Error fetching proposal {proposal_id}: {e}")
             return None
 
-    async def _fetch_governance_proposals(self) -> List[Proposal]:
+    async def _fetch_governance_proposals(self) -> list[Proposal]:
         """Fetch proposals from the governance contract."""
         governance_address = get_governance_address()
 
@@ -751,7 +742,7 @@ class GovernanceService:
 
         return proposals
 
-    async def _fetch_governance_metadata(self) -> List[ProposalMetadata]:
+    async def _fetch_governance_metadata(self) -> list[ProposalMetadata]:
         """Fetch proposal metadata from GitHub repository in parallel."""
         try:
             # First, get all proposal URLs to extract CGP numbers
@@ -777,7 +768,7 @@ class GovernanceService:
             # Fetch metadata for all CGPs in parallel
             logger.info(f"Fetching metadata for {len(cgp_numbers)} CGPs in parallel")
 
-            async def fetch_cgp_metadata(cgp_number: int) -> Optional[ProposalMetadata]:
+            async def fetch_cgp_metadata(cgp_number: int) -> ProposalMetadata | None:
                 try:
                     metadata_dict, _ = await fetch_cgp_header_only(cgp_number)
                     if not metadata_dict:
@@ -853,7 +844,7 @@ class GovernanceService:
             logger.error(f"Error fetching governance metadata: {e}")
             return []
 
-    async def _fetch_executed_proposal_ids(self) -> List[int]:
+    async def _fetch_executed_proposal_ids(self) -> list[int]:
         """Fetch executed proposal IDs from blockchain events."""
         # For now, return empty list - in full implementation this would
         # query blockchain events for ProposalExecuted events
@@ -871,10 +862,10 @@ class GovernanceService:
 
     def _merge_proposals_with_metadata(
         self,
-        proposals: List[Proposal],
-        metadata: List[ProposalMetadata],
-        executed_ids: List[int],
-    ) -> List[MergedProposalData]:
+        proposals: list[Proposal],
+        metadata: list[ProposalMetadata],
+        executed_ids: list[int],
+    ) -> list[MergedProposalData]:
         """Merge on-chain proposals with metadata."""
         sorted_proposals = sorted(proposals, key=lambda p: p.id, reverse=True)
         sorted_metadata = sorted(metadata, key=lambda m: m.cgp, reverse=True)
@@ -928,7 +919,7 @@ class GovernanceService:
             merged.append(merged_data)
 
         # Sort by active status and CGP/ID
-        def sort_key(p: MergedProposalData) -> Tuple[bool, int]:
+        def sort_key(p: MergedProposalData) -> tuple[bool, int]:
             is_active = p.stage in ACTIVE_PROPOSAL_STAGES
             identifier = p.metadata.cgp if p.metadata else (p.id or 0)
             return (not is_active, -identifier)  # Active first, then by ID desc
@@ -937,7 +928,7 @@ class GovernanceService:
 
     def _get_expiry_timestamp(
         self, stage: ProposalStage, timestamp: int
-    ) -> Optional[int]:
+    ) -> int | None:
         """Calculate proposal expiry timestamp based on stage."""
         if stage == ProposalStage.QUEUED:
             return timestamp + QUEUED_STAGE_EXPIRY_TIME
@@ -953,8 +944,8 @@ class GovernanceService:
             return None
 
     async def _fetch_governance_proposals_optimized(
-        self, limit: Optional[int] = 15
-    ) -> List[Proposal]:
+        self, limit: int | None = 15
+    ) -> list[Proposal]:
         """Fetch proposals from the governance contract with optimizations for speed."""
         governance_address = get_governance_address()
 
@@ -1004,7 +995,7 @@ class GovernanceService:
         # Prepare async tasks for all contract calls
         async def fetch_proposal_details(
             proposal_id: int, upvotes: int
-        ) -> Optional[Proposal]:
+        ) -> Proposal | None:
             try:
                 loop = asyncio.get_event_loop()
 
@@ -1077,10 +1068,10 @@ class GovernanceService:
 
     def _merge_proposals_with_metadata_optimized(
         self,
-        proposals: List[Proposal],
-        metadata: List[ProposalMetadata],
-        executed_ids: List[int],
-    ) -> List[MergedProposalData]:
+        proposals: list[Proposal],
+        metadata: list[ProposalMetadata],
+        executed_ids: list[int],
+    ) -> list[MergedProposalData]:
         """Optimized merge function for on-chain proposals with metadata."""
         # Since metadata is usually empty in the optimized version, this is simplified
         if not metadata and not executed_ids:
@@ -1105,7 +1096,7 @@ class GovernanceService:
 
     async def _fetch_governance_proposals_minimal(
         self, limit: int = 15
-    ) -> List[Proposal]:
+    ) -> list[Proposal]:
         """Fetch minimal proposal data for ultra-fast responses under 5 seconds."""
         governance_address = get_governance_address()
 
@@ -1154,7 +1145,7 @@ class GovernanceService:
         # Fetch minimal data with aggressive rate limiting protection
         async def fetch_proposal_minimal(
             proposal_id: int, upvotes: int
-        ) -> Optional[Proposal]:
+        ) -> Proposal | None:
             try:
                 loop = asyncio.get_event_loop()
 
@@ -1231,7 +1222,7 @@ class GovernanceService:
 
     async def _fetch_governance_proposals_multicall(
         self, limit: int = 15
-    ) -> List[Proposal]:
+    ) -> list[Proposal]:
         """Fetch proposals using Multicall3 for maximum speed (sub-second response)."""
         governance_address = get_governance_address()
 
@@ -1345,7 +1336,7 @@ class GovernanceService:
             # Fallback to minimal method if multicall fails
             return await self._fetch_governance_proposals_minimal(limit)
 
-    def _parse_date_to_timestamp(self, date_value: any) -> Optional[int]:
+    def _parse_date_to_timestamp(self, date_value: any) -> int | None:
         """Convert a date string or date object to a timestamp in milliseconds."""
         if not date_value:
             return None

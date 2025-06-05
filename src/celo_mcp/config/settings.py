@@ -1,6 +1,5 @@
 """Configuration settings for Celo MCP server."""
 
-import os
 from typing import Literal
 
 from pydantic import Field
