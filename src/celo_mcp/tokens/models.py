@@ -1,5 +1,6 @@
 """Token-related data models."""
 
+from typing import Dict, Any
 from pydantic import BaseModel, Field
 
 
@@ -83,3 +84,18 @@ class TokenMetadata(BaseModel):
     price_usd: str | None = Field(None, description="Current price in USD")
     market_cap: str | None = Field(None, description="Market capitalization")
     volume_24h: str | None = Field(None, description="24h trading volume")
+
+
+class StableTokenBalances(BaseModel):
+    """Multiple stable token balances for an address."""
+
+    account_address: str = Field(..., description="Account address")
+    balances: list[TokenBalance] = Field(..., description="List of token balances")
+    native_celo_balance: TokenBalance | None = Field(
+        None, description="Native CELO balance"
+    )
+    summary: Dict[str, Any] | None = Field(None, description="Summary information")
+    total_tokens_checked: int = Field(..., description="Total number of tokens checked")
+    successful_tokens: int = Field(
+        ..., description="Number of successfully fetched tokens"
+    )

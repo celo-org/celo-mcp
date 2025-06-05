@@ -107,26 +107,6 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
-            name="get_account",
-            description=(
-                "Retrieve account details on the Celo blockchain, including "
-                "balance and nonce, using the account's address."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "address": {
-                        "type": "string",
-                        "description": (
-                            "The blockchain address of the account to retrieve "
-                            "information for."
-                        ),
-                    }
-                },
-                "required": ["address"],
-            },
-        ),
-        Tool(
             name="get_latest_blocks",
             description=(
                 "Get information about the most recent blocks on the Celo "
@@ -162,23 +142,6 @@ async def list_tools() -> list[Tool]:
         ),
         # Token operations
         Tool(
-            name="get_token_info",
-            description=(
-                "Get detailed information about a token including name, symbol, "
-                "decimals, and total supply."
-            ),
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "token_address": {
-                        "type": "string",
-                        "description": "The contract address of the token.",
-                    }
-                },
-                "required": ["token_address"],
-            },
-        ),
-        Tool(
             name="get_token_balance",
             description="Get the token balance for a specific address.",
             inputSchema={
@@ -210,152 +173,18 @@ async def list_tools() -> list[Tool]:
                 "required": ["address"],
             },
         ),
-        # NFT operations
         Tool(
-            name="get_nft_info",
-            description=(
-                "Get information about an NFT including metadata and collection "
-                "details."
-            ),
+            name="get_stable_token_balance",
+            description="Get balances of all major stable tokens and CELO for an address using multicall.",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "contract_address": {
-                        "type": "string",
-                        "description": "The NFT contract address.",
-                    },
-                    "token_id": {
-                        "type": "string",
-                        "description": "The token ID of the NFT.",
-                    },
-                },
-                "required": ["contract_address", "token_id"],
-            },
-        ),
-        Tool(
-            name="get_nft_balance",
-            description="Get NFT balance for an address (ERC721 or ERC1155).",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "contract_address": {
-                        "type": "string",
-                        "description": "The NFT contract address.",
-                    },
                     "address": {
                         "type": "string",
-                        "description": "The address to check the balance for.",
-                    },
-                    "token_id": {
-                        "type": "string",
-                        "description": "The token ID (required for ERC1155).",
-                        "default": None,
-                    },
+                        "description": "The address to check token balances for.",
+                    }
                 },
-                "required": ["contract_address", "address"],
-            },
-        ),
-        # Contract operations
-        Tool(
-            name="call_contract_function",
-            description="Call a read-only contract function.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "contract_address": {
-                        "type": "string",
-                        "description": "The contract address.",
-                    },
-                    "function_name": {
-                        "type": "string",
-                        "description": "The function name to call.",
-                    },
-                    "function_args": {
-                        "type": "array",
-                        "description": "The function arguments.",
-                        "default": [],
-                    },
-                    "abi": {
-                        "type": "array",
-                        "description": "The contract ABI.",
-                    },
-                    "from_address": {
-                        "type": "string",
-                        "description": "The caller address (optional).",
-                        "default": None,
-                    },
-                },
-                "required": ["contract_address", "function_name", "abi"],
-            },
-        ),
-        Tool(
-            name="estimate_contract_gas",
-            description="Estimate gas for a contract function call.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "contract_address": {
-                        "type": "string",
-                        "description": "The contract address.",
-                    },
-                    "function_name": {
-                        "type": "string",
-                        "description": "The function name to call.",
-                    },
-                    "function_args": {
-                        "type": "array",
-                        "description": "The function arguments.",
-                        "default": [],
-                    },
-                    "abi": {
-                        "type": "array",
-                        "description": "The contract ABI.",
-                    },
-                    "from_address": {
-                        "type": "string",
-                        "description": "The caller address.",
-                    },
-                    "value": {
-                        "type": "string",
-                        "description": "Value to send (in wei).",
-                        "default": "0",
-                    },
-                },
-                "required": [
-                    "contract_address",
-                    "function_name",
-                    "abi",
-                    "from_address",
-                ],
-            },
-        ),
-        # Transaction operations
-        Tool(
-            name="estimate_transaction",
-            description="Estimate gas and cost for a transaction.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "to": {
-                        "type": "string",
-                        "description": "The recipient address.",
-                    },
-                    "from_address": {
-                        "type": "string",
-                        "description": "The sender address.",
-                    },
-                    "value": {
-                        "type": "string",
-                        "description": "Value to send (in wei).",
-                        "default": "0",
-                    },
-                    "data": {
-                        "type": "string",
-                        "description": "Transaction data.",
-                        "default": "0x",
-                    },
-                },
-                "required": ["to", "from_address"],
+                "required": ["address"],
             },
         ),
         Tool(
@@ -563,16 +392,6 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 )
             ]
 
-        elif name == "get_account":
-            address = arguments["address"]
-            result = await blockchain_service.get_account_details(address)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result, indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
         elif name == "get_latest_blocks":
             count = arguments.get("count", 10)
             offset = arguments.get("offset", 0)
@@ -589,16 +408,6 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             ]
 
         # Token operations
-        elif name == "get_token_info":
-            token_address = arguments["token_address"]
-            result = await token_service.get_token_info(token_address)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
         elif name == "get_token_balance":
             token_address = arguments["token_address"]
             address = arguments["address"]
@@ -624,81 +433,9 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 )
             ]
 
-        # NFT operations
-        elif name == "get_nft_info":
-            contract_address = arguments["contract_address"]
-            token_id = arguments["token_id"]
-            result = await nft_service.get_nft_info(contract_address, token_id)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_nft_balance":
-            contract_address = arguments["contract_address"]
+        elif name == "get_stable_token_balance":
             address = arguments["address"]
-            token_id = arguments.get("token_id")
-            result = await nft_service.get_nft_balance(
-                contract_address, address, token_id
-            )
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        # Contract operations
-        elif name == "call_contract_function":
-            from .contracts.models import FunctionCall
-
-            call = FunctionCall(
-                contract_address=arguments["contract_address"],
-                function_name=arguments["function_name"],
-                function_args=arguments.get("function_args", []),
-                from_address=arguments.get("from_address"),
-            )
-            abi = arguments["abi"]
-            result = await contract_service.call_function(call, abi)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "estimate_contract_gas":
-            from .contracts.models import FunctionCall
-
-            call = FunctionCall(
-                contract_address=arguments["contract_address"],
-                function_name=arguments["function_name"],
-                function_args=arguments.get("function_args", []),
-                from_address=arguments["from_address"],
-                value=arguments.get("value", "0"),
-            )
-            abi = arguments["abi"]
-            result = await contract_service.estimate_gas(call, abi)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        # Transaction operations
-        elif name == "estimate_transaction":
-            from .transactions.models import TransactionRequest
-
-            tx_request = TransactionRequest(
-                to=arguments["to"],
-                from_address=arguments["from_address"],
-                value=arguments.get("value", "0"),
-                data=arguments.get("data", "0x"),
-            )
-            result = await transaction_service.estimate_transaction(tx_request)
+            result = await token_service.get_stable_token_balance(address)
             return [
                 TextContent(
                     type="text",
