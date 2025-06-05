@@ -175,7 +175,10 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="get_stable_token_balance",
-            description="Get balances of all major stable tokens and CELO for an address using multicall.",
+            description=(
+                "Get balances of all major stable tokens and CELO for an address "
+                "using multicall."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -206,12 +209,17 @@ async def list_tools() -> list[Tool]:
                     },
                     "include_metadata": {
                         "type": "boolean",
-                        "description": "Whether to fetch metadata from GitHub repository (slower - only use when needed)",
+                        "description": (
+                            "Whether to fetch metadata from GitHub repository "
+                            "(slower - only use when needed)"
+                        ),
                         "default": True,
                     },
                     "page": {
                         "type": "integer",
-                        "description": "Page number (1-based). If provided, overrides offset/limit",
+                        "description": (
+                            "Page number (1-based). If provided, overrides offset/limit"
+                        ),
                         "minimum": 1,
                     },
                     "page_size": {
@@ -223,12 +231,18 @@ async def list_tools() -> list[Tool]:
                     },
                     "offset": {
                         "type": "integer",
-                        "description": "Number of proposals to skip (alternative to page-based pagination)",
+                        "description": (
+                            "Number of proposals to skip "
+                            "(alternative to page-based pagination)"
+                        ),
                         "minimum": 0,
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Maximum number of proposals to return (alternative to page_size)",
+                        "description": (
+                            "Maximum number of proposals to return "
+                            "(alternative to page_size)"
+                        ),
                         "minimum": 1,
                         "maximum": 100,
                     },
@@ -299,7 +313,9 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "page": {
                         "type": "integer",
-                        "description": "Page number (1-based). If provided, overrides offset/limit",
+                        "description": (
+                            "Page number (1-based). If provided, overrides offset/limit"
+                        ),
                         "minimum": 1,
                     },
                     "page_size": {
@@ -311,12 +327,18 @@ async def list_tools() -> list[Tool]:
                     },
                     "offset": {
                         "type": "integer",
-                        "description": "Number of validator groups to skip (alternative to page-based pagination)",
+                        "description": (
+                            "Number of validator groups to skip "
+                            "(alternative to page-based pagination)"
+                        ),
                         "minimum": 0,
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Maximum number of validator groups to return (alternative to page_size)",
+                        "description": (
+                            "Maximum number of validator groups to return "
+                            "(alternative to page_size)"
+                        ),
                         "minimum": 1,
                         "maximum": 100,
                     },
@@ -570,7 +592,8 @@ async def main():
 
     logger.info("Starting Celo MCP Server with Stage 2 capabilities")
     logger.info(
-        "Available services: Blockchain Data, Tokens, NFTs, Contracts, Transactions, Governance, Staking"
+        "Available services: Blockchain Data, Tokens, NFTs, Contracts, "
+        "Transactions, Governance, Staking"
     )
 
     # Run the server

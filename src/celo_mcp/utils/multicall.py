@@ -253,7 +253,9 @@ class MulticallService:
             test_calls = [
                 {
                     "target": MULTICALL3_ADDRESS,
-                    "callData": self._multicall_contract.functions.getBlockNumber()._encode_transaction_data(),
+                    "callData": (
+                        self._multicall_contract.functions.getBlockNumber()._encode_transaction_data()
+                    ),
                     "allowFailure": False,
                 }
             ]

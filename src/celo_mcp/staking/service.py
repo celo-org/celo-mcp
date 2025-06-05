@@ -566,7 +566,8 @@ class StakingService:
                     format_address(addr) for addr in activatable_groups
                 ],
                 "message": (
-                    f"{len(activatable_groups)} of {len(pending_groups)} groups have stakes ready to activate"
+                    f"{len(activatable_groups)} of {len(pending_groups)} groups "
+                    f"have stakes ready to activate"
                     if pending_groups
                     else "No pending stakes found"
                 ),
@@ -644,7 +645,8 @@ class StakingService:
                     format_address(addr) for addr in activatable_groups
                 ],
                 "message": (
-                    f"{len(activatable_groups)} of {len(pending_groups)} groups have stakes ready to activate"
+                    f"{len(activatable_groups)} of {len(pending_groups)} groups "
+                    f"have stakes ready to activate"
                     if pending_groups
                     else "No pending stakes found"
                 ),
@@ -1068,14 +1070,6 @@ class StakingService:
 
                 return decode
 
-            def make_votes_decoder():
-                def decode(data):
-                    return self._multicall_service.decode_function_result(
-                        election_contract, "getActiveVotesForGroup", data
-                    )
-
-                return decode
-
             def make_name_decoder():
                 def decode(data):
                     return self._multicall_service.decode_function_result(
@@ -1085,7 +1079,6 @@ class StakingService:
                 return decode
 
             group_info_decoder = make_group_info_decoder()
-            votes_decoder = make_votes_decoder()
             name_decoder = make_name_decoder()
 
             call_index = 0
@@ -1214,7 +1207,10 @@ class StakingService:
                 "showing_groups": len(paginated_groups),
                 "total_votes": total_votes,
                 "total_votes_formatted": format_celo_amount_with_symbol(total_votes),
-                "message": f"Showing {len(paginated_groups)} of {total_groups} validator groups (Page {current_page} of {total_pages})",
+                "message": (
+                    f"{len(paginated_groups)} of {total_groups} validator groups "
+                    f"(Page {current_page} of {total_pages})"
+                ),
             },
         )
 
@@ -1568,7 +1564,10 @@ class StakingService:
                     "network_participation": format_celo_amount_with_symbol(
                         total_votes
                     ),
-                    "message": f"Total network staking participation: {format_celo_amount_with_symbol(total_votes)}",
+                    "message": (
+                        f"Total network staking participation: "
+                        f"{format_celo_amount_with_symbol(total_votes)}"
+                    ),
                 },
             }
 

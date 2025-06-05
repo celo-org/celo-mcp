@@ -286,7 +286,8 @@ class TokenService:
 
         except Exception as e:
             logger.error(
-                f"Failed to get token balance for {token_address} and account {account_address}: {e}"
+                f"Failed to get token balance for {token_address} "
+                f"and account {account_address}: {e}"
             )
             raise
 
@@ -487,7 +488,6 @@ class TokenService:
             # Process multicall results
             balances = []
             successful_count = 0
-            total_count = len(STABLE_TOKENS) - 1  # Exclude native CELO
 
             for token_symbol, call_info in call_map.items():
                 try:
@@ -532,7 +532,10 @@ class TokenService:
                 "tokens_with_balance": len(
                     [b for b in balances if float(b.balance_formatted or "0") > 0]
                 ),
-                "message": f"Successfully fetched {successful_count} of {len(STABLE_TOKENS)} token balances",
+                "message": (
+                    f"Successfully fetched {successful_count} of "
+                    f"{len(STABLE_TOKENS)} token balances"
+                ),
             }
 
             return StableTokenBalances(

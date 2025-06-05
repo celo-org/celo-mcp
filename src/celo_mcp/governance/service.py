@@ -94,7 +94,7 @@ async def fetch_cgp_header_only(cgp_number: int) -> tuple[dict | None, None]:
                 logger.debug(f"CGP file not found: {raw_url}")
                 return None, None
 
-            # Fetch only the beginning of the file (first 2KB should be enough for headers)
+            # Fetch only the beginning of the file (first 2KB for headers)
             headers = {"Range": "bytes=0-2047"}  # First 2KB
             response = await client.get(raw_url, headers=headers)
 
@@ -206,8 +206,8 @@ class GovernanceService:
         limit: int | None = None,
     ) -> GovernanceProposalsResponse:
         """
-        Get governance proposals with celo-mondo style formatting, sorting, and pagination.
-        ULTRA-OPTIMIZED VERSION for MCP timeout prevention.
+        Get governance proposals with celo-mondo style formatting,
+        sorting, and pagination. ULTRA-OPTIMIZED VERSION for MCP timeout prevention.
 
         Args:
             include_inactive: Whether to include inactive/expired proposals
@@ -245,7 +245,8 @@ class GovernanceService:
 
             # ULTRA-FAST PATH: Skip metadata by default and fetch only needed proposals
             if not include_metadata:
-                # Use multicall for maximum speed if available, otherwise fall back to minimal
+                # Use multicall for maximum speed if available,
+                # otherwise fall back to minimal
                 buffer_size = min(
                     50, calculated_limit + 20
                 )  # Larger buffer since multicall is faster
@@ -372,7 +373,8 @@ class GovernanceService:
 
             # SLOWER PATH: Original logic when metadata is requested
             # Fetch ALL proposals first to get accurate total count and apply filtering
-            # For better performance, we could implement this at the contract level in production
+            # For better performance, we could implement this at
+            # the contract level in production
             all_proposals = await self._fetch_governance_proposals_optimized(limit=None)
 
             # Fetch metadata if requested
@@ -836,7 +838,8 @@ class GovernanceService:
             ]
 
             logger.info(
-                f"Successfully fetched metadata for {len(metadata_list)}/{len(cgp_numbers)} CGPs"
+                f"Successfully fetched metadata for "
+                f"{len(metadata_list)}/{len(cgp_numbers)} CGPs"
             )
             return metadata_list
 
@@ -870,9 +873,6 @@ class GovernanceService:
         sorted_proposals = sorted(proposals, key=lambda p: p.id, reverse=True)
         sorted_metadata = sorted(metadata, key=lambda m: m.cgp, reverse=True)
         merged = []
-
-        # Create a map for easy lookup
-        proposal_map = {p.id: p for p in sorted_proposals}
 
         # Process on-chain proposals first
         for proposal in sorted_proposals:
@@ -926,9 +926,7 @@ class GovernanceService:
 
         return sorted(merged, key=sort_key)
 
-    def _get_expiry_timestamp(
-        self, stage: ProposalStage, timestamp: int
-    ) -> int | None:
+    def _get_expiry_timestamp(self, stage: ProposalStage, timestamp: int) -> int | None:
         """Calculate proposal expiry timestamp based on stage."""
         if stage == ProposalStage.QUEUED:
             return timestamp + QUEUED_STAGE_EXPIRY_TIME
@@ -1284,7 +1282,8 @@ class GovernanceService:
             for result in multicall_results:
                 if not result["success"]:
                     logger.warning(
-                        f"Failed to fetch complete data for proposal {result['proposal_id']}"
+                        f"Failed to fetch complete data for "
+                        f"proposal {result['proposal_id']}"
                     )
                     continue
 

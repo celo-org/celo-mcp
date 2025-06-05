@@ -11,9 +11,7 @@ DEFAULT_DISPLAY_DECIMALS = 2
 WEI_PER_ETHER = 10**18
 
 
-def from_wei(
-    value: int | str | None, decimals: int = DEFAULT_TOKEN_DECIMALS
-) -> float:
+def from_wei(value: int | str | None, decimals: int = DEFAULT_TOKEN_DECIMALS) -> float:
     """Convert Wei value to Ether value."""
     if not value:
         return 0.0
@@ -93,9 +91,7 @@ def format_number_with_commas(value: str) -> str:
         return f"{int(float(value)):,}"
 
 
-def format_percentage(
-    numerator: int | str, denominator: int | str
-) -> float:
+def format_percentage(numerator: int | str, denominator: int | str) -> float:
     """Calculate percentage with proper rounding."""
     if not denominator or float(denominator) == 0:
         return 0.0
@@ -226,9 +222,7 @@ def format_celo_amount_with_symbol(
     return f"{formatted} {symbol}"
 
 
-def format_capacity_info(
-    votes: int | str, capacity: int | str
-) -> dict[str, Any]:
+def format_capacity_info(votes: int | str, capacity: int | str) -> dict[str, Any]:
     """Format capacity information showing utilization."""
     votes_num = float(votes) if votes else 0
     capacity_num = float(capacity) if capacity else 0
@@ -259,7 +253,10 @@ def format_validator_group_summary(group_data: dict[str, Any]) -> dict[str, Any]
         "capacity": format_celo_amount_with_symbol(
             group_data.get("capacity", 0), is_wei=True
         ),
-        "members": f"{group_data.get('num_elected', 0)}/{group_data.get('num_members', 0)} elected",
+        "members": (
+            f"{group_data.get('num_elected', 0)}/"
+            f"{group_data.get('num_members', 0)} elected"
+        ),
         "avg_score": f"{group_data.get('avg_score', 0):.1f}%",
         "last_slashed": (
             get_human_readable_time_string(group_data.get("last_slashed", 0))
