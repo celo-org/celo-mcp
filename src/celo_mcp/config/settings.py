@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
         env_prefix = "CELO_MCP_"
         env_file = ".env"
-
+        extra = "ignore" 
 
 def get_settings() -> Settings:
     """Get application settings."""
