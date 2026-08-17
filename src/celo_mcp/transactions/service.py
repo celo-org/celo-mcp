@@ -1,7 +1,9 @@
 """Transaction service for Celo blockchain."""
 
+import asyncio
 import logging
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from eth_account import Account
 from eth_utils import to_hex
@@ -23,6 +25,8 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 
 class TransactionService:
     """Service for transaction management on Celo blockchain."""
@@ -31,6 +35,11 @@ class TransactionService:
         """Initialize transaction service."""
         self.client = client
         self.w3 = client.w3
+
+    async def _call(self, func: Callable[[], T]) -> T:
+        """Run a synchronous Web3 call in the default executor."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, func)
 
     async def estimate_transaction(
         self, tx_request: TransactionRequest
@@ -48,7 +57,9 @@ class TransactionService:
             # Estimate gas
             gas_limit = tx_request.gas_limit
             if not gas_limit:
-                gas_limit = await self.w3.eth.estimate_gas(tx_params)
+                gas_limit = await self._call(
+                    lambda: self.w3.eth.estimate_gas(tx_params)
+                )
 
             # Get gas fee data
             gas_fee_data = await self.get_gas_fee_data()
@@ -89,8 +100,10 @@ class TransactionService:
             # Get nonce if not provided
             nonce = tx_request.nonce
             if nonce is None:
-                nonce = await self.w3.eth.get_transaction_count(
-                    self.w3.to_checksum_address(tx_request.from_address)
+                nonce = await self._call(
+                    lambda: self.w3.eth.get_transaction_count(
+                        self.w3.to_checksum_address(tx_request.from_address)
+                    )
                 )
 
             # Get gas fee data
@@ -110,7 +123,9 @@ class TransactionService:
                 tx_dict["gas"] = tx_request.gas_limit
             else:
                 # Estimate gas
-                tx_dict["gas"] = await self.w3.eth.estimate_gas(tx_dict)
+                tx_dict["gas"] = await self._call(
+                    lambda: self.w3.eth.estimate_gas(tx_dict)
+                )
 
             # Add fee parameters
             if tx_request.max_fee_per_gas and tx_request.max_priority_fee_per_gas:
@@ -143,7 +158,7 @@ class TransactionService:
             signed_tx = self.w3.eth.account.sign_transaction(tx_dict, private_key)
 
             return SignedTransaction(
-                raw_transaction=to_hex(signed_tx.rawTransaction),
+                raw_transaction=to_hex(signed_tx.raw_transaction),
                 transaction_hash=to_hex(signed_tx.hash),
                 from_address=tx_dict["from"],
                 to=tx_dict.get("to"),
@@ -162,7 +177,9 @@ class TransactionService:
         """Send a signed transaction to the network."""
         try:
             # Send raw transaction
-            tx_hash = await self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            tx_hash = await self._call(
+                lambda: self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
+            )
             return to_hex(tx_hash)
 
         except Exception as e:
@@ -173,12 +190,14 @@ class TransactionService:
         """Get transaction information by hash."""
         try:
             # Get transaction
-            tx = await self.w3.eth.get_transaction(tx_hash)
+            tx = await self._call(lambda: self.w3.eth.get_transaction(tx_hash))
 
             # Get receipt if transaction is mined
             receipt = None
             try:
-                receipt = await self.w3.eth.get_transaction_receipt(tx_hash)
+                receipt = await self._call(
+                    lambda: self.w3.eth.get_transaction_receipt(tx_hash)
+                )
             except Exception:
                 # Transaction not mined yet
                 pass
@@ -195,11 +214,13 @@ class TransactionService:
                     status = TransactionStatus.FAILED
 
                 # Calculate confirmations
-                latest_block = await self.w3.eth.block_number
+                latest_block = await self._call(lambda: self.w3.eth.block_number)
                 confirmations = latest_block - receipt.blockNumber
 
                 # Get block timestamp
-                block = await self.w3.eth.get_block(receipt.blockNumber)
+                block = await self._call(
+                    lambda: self.w3.eth.get_block(receipt.blockNumber)
+                )
                 timestamp = block.timestamp
 
             # Determine transaction type
@@ -243,7 +264,9 @@ class TransactionService:
     async def get_transaction_receipt(self, tx_hash: str) -> TransactionReceipt:
         """Get transaction receipt by hash."""
         try:
-            receipt = await self.w3.eth.get_transaction_receipt(tx_hash)
+            receipt = await self._call(
+                lambda: self.w3.eth.get_transaction_receipt(tx_hash)
+            )
 
             return TransactionReceipt(
                 transaction_hash=to_hex(receipt.transactionHash),
@@ -269,11 +292,11 @@ class TransactionService:
         """Get current gas fee data."""
         try:
             # Get base fee (for EIP-1559)
-            latest_block = await self.w3.eth.get_block("latest")
+            latest_block = await self._call(lambda: self.w3.eth.get_block("latest"))
             base_fee_per_gas = getattr(latest_block, "baseFeePerGas", None)
 
             # Get gas price
-            gas_price = await self.w3.eth.gas_price
+            gas_price = await self._call(lambda: self.w3.eth.gas_price)
 
             if base_fee_per_gas:
                 # EIP-1559 supported
@@ -317,10 +340,10 @@ class TransactionService:
 
             # Try to call the transaction
             try:
-                result = await self.w3.eth.call(tx_params)
+                result = await self._call(lambda: self.w3.eth.call(tx_params))
 
                 # Estimate gas
-                gas_used = await self.w3.eth.estimate_gas(tx_params)
+                gas_used = await self._call(lambda: self.w3.eth.estimate_gas(tx_params))
 
                 return TransactionSimulation(
                     success=True,
@@ -363,7 +386,7 @@ class TransactionService:
 
             # Get latest block number
             if to_block == "latest":
-                to_block = await self.w3.eth.block_number
+                to_block = await self._call(lambda: self.w3.eth.block_number)
 
             # This is a basic implementation that would be very slow for large ranges
             # In practice, you'd use external indexing services
@@ -389,8 +412,10 @@ class TransactionService:
     ) -> TransactionReceipt:
         """Wait for a transaction to be mined."""
         try:
-            receipt = await self.w3.eth.wait_for_transaction_receipt(
-                tx_hash, timeout=timeout, poll_latency=poll_interval
+            receipt = await self._call(
+                lambda: self.w3.eth.wait_for_transaction_receipt(
+                    tx_hash, timeout=timeout, poll_latency=poll_interval
+                )
             )
 
             return TransactionReceipt(
