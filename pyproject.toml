@@ -18,7 +18,6 @@ dependencies = [
     "eth-abi>=5.0.0",
     "eth-account>=0.11.0",
     "eth-utils>=4.0.0",
-    "crawl4ai>=0.6.0",
     "requests>=2.31.0",
     "urllib3>=2.0.0",
     "PyYAML>=6.0.0",
