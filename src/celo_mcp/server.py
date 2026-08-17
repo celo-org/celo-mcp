@@ -6,9 +6,16 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from mcp.server import Server
+from mcp.server import Server, ServerRequestContext
 from mcp.server.stdio import stdio_server
-from mcp.types import TextContent, Tool
+from mcp.types import (
+    CallToolRequestParams,
+    CallToolResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    TextContent,
+    Tool,
+)
 
 from .blockchain_data import BlockchainDataService
 from .contracts import ContractService
@@ -31,9 +38,6 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-# Initialize server
-server = Server("celo-mcp")
-
 # Global service instances
 blockchain_service: BlockchainDataService = None
 token_service: TokenService = None
@@ -44,7 +48,6 @@ governance_service: GovernanceService = None
 staking_service: StakingService = None
 
 
-@server.list_tools()
 async def list_tools() -> list[Tool]:
     """List available tools."""
     return [
@@ -374,7 +377,6 @@ async def list_tools() -> list[Tool]:
     ]
 
 
-@server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     global blockchain_service, token_service, nft_service, contract_service
@@ -568,6 +570,29 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     except Exception as e:
         logger.error(f"Error calling tool {name}: {e}")
         return [TextContent(type="text", text=f"Error: {str(e)}")]
+
+
+async def _on_list_tools(
+    context: ServerRequestContext, params: PaginatedRequestParams | None
+) -> ListToolsResult:
+    """Adapt list_tools to the mcp 2.x handler interface."""
+    return ListToolsResult(tools=await list_tools())
+
+
+async def _on_call_tool(
+    context: ServerRequestContext, params: CallToolRequestParams
+) -> CallToolResult:
+    """Adapt call_tool to the mcp 2.x handler interface."""
+    content = await call_tool(params.name, params.arguments or {})
+    return CallToolResult(content=list(content))
+
+
+# Initialize server
+server = Server(
+    "celo-mcp",
+    on_list_tools=_on_list_tools,
+    on_call_tool=_on_call_tool,
+)
 
 
 async def main():
