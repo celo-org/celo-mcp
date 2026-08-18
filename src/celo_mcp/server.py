@@ -595,8 +595,8 @@ server = Server(
 )
 
 
-async def main():
-    """Main server function."""
+def init_services() -> None:
+    """Instantiate the module-global services. Shared by every transport."""
     global blockchain_service, token_service, nft_service, contract_service
     global transaction_service, governance_service, staking_service
 
@@ -615,22 +615,72 @@ async def main():
     governance_service = GovernanceService(client)
     staking_service = StakingService(client)
 
-    logger.info("Starting Celo MCP Server with Stage 2 capabilities")
     logger.info(
-        "Available services: Blockchain Data, Tokens, NFTs, Contracts, "
+        "Initialized services: Blockchain Data, Tokens, NFTs, Contracts, "
         "Transactions, Governance, Staking"
     )
 
-    # Run the server
+
+async def run_stdio() -> None:
+    """Run the server over stdio (the original, unchanged behaviour)."""
+    init_services()
+
+    logger.info("Starting Celo MCP Server (stdio transport)")
+
     async with stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream, write_stream, server.create_initialization_options()
         )
 
 
+async def main():
+    """Backwards-compatible stdio entry point (kept for `from .server import main`)."""
+    await run_stdio()
+
+
 def main_sync():
     """Synchronous main function for CLI entry point."""
     asyncio.run(main())
+
+
+def cli():
+    """Transport-aware entry point: `celo-mcp-server --transport {stdio,http}`."""
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser(prog="celo-mcp-server")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "http"],
+        default=os.environ.get("MCP_TRANSPORT", "stdio"),
+        help="Transport to use (default: stdio, or $MCP_TRANSPORT).",
+    )
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("HOST", "127.0.0.1"),
+        help="HTTP bind host (default: 127.0.0.1, or $HOST).",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("PORT", "3000")),
+        help="HTTP port (default: 3000, or $PORT).",
+    )
+    args = parser.parse_args()
+
+    if args.transport == "stdio":
+        asyncio.run(run_stdio())
+        return
+
+    import uvicorn
+
+    from .http_app import build_app
+
+    # configure logging up front so this line is not swallowed (the lifespan
+    # calls setup_logging() again when it initializes the services)
+    setup_logging()
+    logger.info("Starting Celo MCP Server (http) on %s:%s", args.host, args.port)
+    uvicorn.run(build_app(host=args.host), host=args.host, port=args.port)
 
 
 if __name__ == "__main__":
