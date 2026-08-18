@@ -90,7 +90,8 @@ Configuration (environment variables):
 | `HOST` / `PORT` | HTTP bind host / port | `127.0.0.1` / `3000` |
 | `MCP_ALLOWED_HOSTS` | Hostnames accepted by the SDK's DNS-rebinding check, comma-separated. Set to your public hostname(s), or `*` to disable the check | localhost only |
 | `MCP_CORS_ORIGINS` | Comma-separated allowed origins (or `*`) | `*` |
-| `MCP_RATE_LIMIT` / `MCP_RATE_WINDOW` | Requests per IP per window (seconds) | `60` / `60` |
+| `MCP_RATE_LIMIT` / `MCP_RATE_WINDOW` | Requests per client per window (seconds); `/health` is exempt | `60` / `60` |
+| `MCP_TRUST_PROXY` | Set to `1` behind a proxy/load balancer so the rate limiter keys on the first `X-Forwarded-For` hop instead of the proxy address | unset |
 | `MCP_AUTH_TOKEN` | If set, requires `Authorization: Bearer <token>` on `/mcp` | unset (open) |
 | `CELO_RPC_URL` | Celo RPC endpoint | (existing default) |
 

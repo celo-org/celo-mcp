@@ -53,9 +53,23 @@ gcloud run services update celo-mcp --set-env-vars MCP_AUTH_TOKEN=<random-token>
 Clients then send `Authorization: Bearer <random-token>`. `/health` stays open for
 Cloud Run's health checks.
 
-The built-in per-IP rate limit (`MCP_RATE_LIMIT` / `MCP_RATE_WINDOW`) is **best-effort
-and per instance** — with several instances running, each keeps its own counter. For
-hard guarantees put a managed limiter (e.g. Cloud Armor) in front.
+The built-in rate limit (`MCP_RATE_LIMIT` / `MCP_RATE_WINDOW`) is **best-effort and per
+instance** — with several instances running, each keeps its own counter. For hard
+guarantees put a managed limiter (e.g. Cloud Armor) in front.
+
+Behind a proxy — which is exactly what Cloud Run is — the peer address the server sees
+is the platform's, so **every external caller would share a single bucket**: one noisy
+client would rate-limit everyone, and a single agent making a burst of tool calls could
+429 itself. Set `MCP_TRUST_PROXY=1` there so the limiter keys on the first
+`X-Forwarded-For` hop instead:
+
+```bash
+gcloud run services update celo-mcp --set-env-vars MCP_TRUST_PROXY=1
+```
+
+It is opt-in because `X-Forwarded-For` is client-controlled: trusting it on a server
+exposed directly to the internet would let anyone dodge the limit by spoofing the
+header. `/health` is always exempt so platform probes never consume a caller's budget.
 
 ## Fly.io (alternative)
 

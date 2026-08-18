@@ -36,16 +36,36 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Not a distributed limiter: with multiple instances each holds its own window.
     Good enough to blunt naive floods on a public read-only endpoint; put a real
     limiter (Cloud Armor, Redis) in front for hard guarantees.
+
+    Behind a proxy (Cloud Run, any load balancer) the peer address is the proxy, so
+    every caller would share one bucket. Set `MCP_TRUST_PROXY=1` there to key on the
+    first `X-Forwarded-For` hop instead. It is opt-in because that header is
+    client-controlled and trivially spoofed when the server is exposed directly.
+
+    `/health` is exempt so platform probes do not consume a caller's budget.
     """
 
-    def __init__(self, app, limit: int, window: int):
+    def __init__(self, app, limit: int, window: int, trust_proxy: bool = False):
         super().__init__(app)
         self.limit = limit
         self.window = window
+        self.trust_proxy = trust_proxy
         self._hits: dict[str, tuple[int, float]] = {}
 
+    def _client_key(self, request: Request) -> str:
+        if self.trust_proxy:
+            forwarded = request.headers.get("x-forwarded-for", "")
+            first_hop = forwarded.split(",")[0].strip()
+            if first_hop:
+                return first_hop
+        return request.client.host if request.client else "unknown"
+
     async def dispatch(self, request: Request, call_next):
-        ip = request.client.host if request.client else "unknown"
+        # platform health probes must not eat into anyone's budget
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        ip = self._client_key(request)
         now = time.monotonic()
 
         # purge expired windows so the dict cannot grow unbounded over time
@@ -147,6 +167,7 @@ def build_app(host: str = "127.0.0.1") -> Starlette:
         RateLimitMiddleware,
         limit=int(os.environ.get("MCP_RATE_LIMIT", "60")),
         window=int(os.environ.get("MCP_RATE_WINDOW", "60")),
+        trust_proxy=os.environ.get("MCP_TRUST_PROXY", "").strip() in ("1", "true"),
     )
 
     cors_origins = os.environ.get("MCP_CORS_ORIGINS", "*")
