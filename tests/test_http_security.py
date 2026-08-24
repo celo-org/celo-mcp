@@ -126,34 +126,98 @@ def test_health_is_exempt_from_rate_limit(monkeypatch):
     assert codes == [200] * 6
 
 
-def test_rate_limit_keys_on_forwarded_for_when_proxy_trusted(monkeypatch):
-    """Behind a proxy every caller shares the peer address, so key on X-Forwarded-For.
+def _post_forwarded(client, forwarded_for):
+    return client.post(
+        "/mcp",
+        json=_initialize_body(),
+        headers={
+            "Accept": "application/json, text/event-stream",
+            "X-Forwarded-For": forwarded_for,
+        },
+    ).status_code
 
-    Two distinct forwarded clients must each get their own budget.
+
+def test_rate_limit_keys_on_client_hop_behind_one_proxy(monkeypatch):
+    """Behind a proxy every caller shares the peer address, so key on the hop it added.
+
+    One trusted hop is the plain reverse-proxy case (nginx appending the peer it
+    saw). Two distinct clients must each get their own budget.
     """
     monkeypatch.setenv("MCP_RATE_LIMIT", "2")
     monkeypatch.setenv("MCP_RATE_WINDOW", "60")
     monkeypatch.setenv("MCP_ALLOWED_HOSTS", "*")
     monkeypatch.setenv("MCP_TRUST_PROXY", "1")
 
-    def post(client, forwarded_for):
-        return client.post(
-            "/mcp",
-            json=_initialize_body(),
-            headers={
-                "Accept": "application/json, text/event-stream",
-                "X-Forwarded-For": f"{forwarded_for}, 10.0.0.1",
-            },
-        ).status_code
-
     with TestClient(build_app()) as client:
-        a = [post(client, "203.0.113.1") for _ in range(3)]
+        a = [_post_forwarded(client, "203.0.113.1") for _ in range(3)]
         # a different caller behind the same proxy still has a full budget
-        b = post(client, "203.0.113.2")
+        b = _post_forwarded(client, "203.0.113.2")
 
     assert a[:2] == [200, 200]
     assert a[2] == 429, "the noisy client should be limited"
     assert b == 200, "a separate forwarded client must not inherit the limit"
+
+
+def test_rate_limit_keys_on_client_hop_behind_two_hops(monkeypatch):
+    """Two trusted hops is the Google external ALB shape: <client-ip>,<lb-ip>.
+
+    The caller-written prefix is identical for both callers here, so the only way
+    to tell them apart is to count from the right end of the header.
+    """
+    monkeypatch.setenv("MCP_RATE_LIMIT", "2")
+    monkeypatch.setenv("MCP_RATE_WINDOW", "60")
+    monkeypatch.setenv("MCP_ALLOWED_HOSTS", "*")
+    monkeypatch.setenv("MCP_TRUST_PROXY", "2")
+
+    with TestClient(build_app()) as client:
+        a = [
+            _post_forwarded(client, "198.51.100.9, 203.0.113.1, 10.0.0.1")
+            for _ in range(3)
+        ]
+        b = _post_forwarded(client, "198.51.100.9, 203.0.113.2, 10.0.0.1")
+
+    assert a[:2] == [200, 200]
+    assert a[2] == 429, "the noisy client should be limited"
+    assert b == 200, "a separate client must not inherit the limit"
+
+
+def test_spoofed_leading_hop_cannot_dodge_the_limit(monkeypatch):
+    """A trusted proxy APPENDS, so anything left of its hops is caller-written.
+
+    Google's frontend leaves whatever the caller sent in front of the
+    `<client-ip>,<lb-ip>` pair it adds and does not verify it, so keying on the
+    leftmost entry would let one caller mint a fresh bucket per request.
+    """
+    monkeypatch.setenv("MCP_RATE_LIMIT", "2")
+    monkeypatch.setenv("MCP_RATE_WINDOW", "60")
+    monkeypatch.setenv("MCP_ALLOWED_HOSTS", "*")
+    monkeypatch.setenv("MCP_TRUST_PROXY", "2")
+
+    with TestClient(build_app()) as client:
+        codes = [
+            # one caller, rotating only the hop they control
+            _post_forwarded(client, f"198.51.100.{i}, 203.0.113.7, 10.0.0.1")
+            for i in range(4)
+        ]
+
+    assert 429 in codes, "a spoofed leading hop must not mint a fresh bucket"
+
+
+def test_short_forwarded_chain_falls_back_to_the_peer(monkeypatch):
+    """Fewer entries than trusted hops means the request did not come through them.
+
+    Reaching the container directly past the load balancer must not let a
+    self-written header become the key; fall back to the peer address.
+    """
+    monkeypatch.setenv("MCP_RATE_LIMIT", "2")
+    monkeypatch.setenv("MCP_RATE_WINDOW", "60")
+    monkeypatch.setenv("MCP_ALLOWED_HOSTS", "*")
+    monkeypatch.setenv("MCP_TRUST_PROXY", "2")
+
+    with TestClient(build_app()) as client:
+        codes = [_post_forwarded(client, f"203.0.113.{i}") for i in range(4)]
+
+    assert 429 in codes, "a short chain must not be keyed on"
 
 
 def test_forwarded_for_ignored_when_proxy_not_trusted(monkeypatch):

@@ -91,7 +91,7 @@ Configuration (environment variables):
 | `MCP_ALLOWED_HOSTS` | Hostnames accepted by the SDK's DNS-rebinding check, comma-separated. Set to your public hostname(s), or `*` to disable the check | localhost only |
 | `MCP_CORS_ORIGINS` | Comma-separated allowed origins (or `*`) | `*` |
 | `MCP_RATE_LIMIT` / `MCP_RATE_WINDOW` | Requests per client per window (seconds); `/health` is exempt | `60` / `60` |
-| `MCP_TRUST_PROXY` | Set to `1` behind a proxy/load balancer so the rate limiter keys on the first `X-Forwarded-For` hop instead of the proxy address | unset |
+| `MCP_TRUST_PROXY` | Number of `X-Forwarded-For` hops your infrastructure appends, so the rate limiter keys on the client rather than the proxy address. `1` for a single reverse proxy, `2` behind a Google external load balancer. Counted from the right — see [deployment](docs/DEPLOYMENT.md) | unset |
 | `MCP_AUTH_TOKEN` | If set, requires `Authorization: Bearer <token>` on `/mcp` | unset (open) |
 | `CELO_RPC_URL` | Celo RPC endpoint | (existing default) |
 

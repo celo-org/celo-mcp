@@ -31,34 +31,48 @@ async def _health(_request: Request) -> JSONResponse:
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Best-effort per-IP fixed-window rate limit (in-memory, per process).
+    """Best-effort per-client fixed-window rate limit (in-memory, per process).
 
     Not a distributed limiter: with multiple instances each holds its own window.
     Good enough to blunt naive floods on a public read-only endpoint; put a real
     limiter (Cloud Armor, Redis) in front for hard guarantees.
 
     Behind a proxy (Cloud Run, any load balancer) the peer address is the proxy, so
-    every caller would share one bucket. Set `MCP_TRUST_PROXY=1` there to key on the
-    first `X-Forwarded-For` hop instead. It is opt-in because that header is
-    client-controlled and trivially spoofed when the server is exposed directly.
+    every caller would share one bucket. Set `MCP_TRUST_PROXY` to the number of hops
+    your infrastructure appends to `X-Forwarded-For` to key on the client instead.
+
+    The count matters, and it is counted from the RIGHT: proxies *append*, and
+    Google's frontend explicitly does not verify anything preceding the
+    `<client-ip>,<lb-ip>` pair it adds. So the leftmost entry is whatever the caller
+    chose to send, and keying on it would let one client mint a fresh bucket per
+    request. Only the trailing entries a trusted hop wrote can be believed.
+
+    Typical values: `1` for a single reverse proxy that appends the peer it saw
+    (nginx, Caddy), `2` behind a Google external Application Load Balancer. Erring
+    high is the safe direction — too many hops falls back to the peer address (one
+    shared bucket, merely coarse), while too few reads a caller-written entry.
 
     `/health` is exempt so platform probes do not consume a caller's budget.
     """
 
-    def __init__(self, app, limit: int, window: int, trust_proxy: bool = False):
+    def __init__(self, app, limit: int, window: int, trusted_hops: int = 0):
         super().__init__(app)
         self.limit = limit
         self.window = window
-        self.trust_proxy = trust_proxy
+        self.trusted_hops = trusted_hops
         self._hits: dict[str, tuple[int, float]] = {}
 
     def _client_key(self, request: Request) -> str:
-        if self.trust_proxy:
+        peer = request.client.host if request.client else "unknown"
+        if self.trusted_hops:
             forwarded = request.headers.get("x-forwarded-for", "")
-            first_hop = forwarded.split(",")[0].strip()
-            if first_hop:
-                return first_hop
-        return request.client.host if request.client else "unknown"
+            hops = [h.strip() for h in forwarded.split(",") if h.strip()]
+            # count from the right: the trailing `trusted_hops` entries are the ones
+            # our own infrastructure appended, and the first of those is the client
+            if len(hops) >= self.trusted_hops:
+                return hops[-self.trusted_hops]
+            # a chain shorter than the trusted hops did not come through them
+        return peer
 
     async def dispatch(self, request: Request, call_next):
         # platform health probes must not eat into anyone's budget
@@ -145,6 +159,29 @@ def _transport_security(host: str) -> TransportSecuritySettings:
     )
 
 
+def _trusted_proxy_hops() -> int:
+    """Read MCP_TRUST_PROXY as a count of trusted `X-Forwarded-For` hops.
+
+    Accepts a hop count; `true` is kept working as `1` and anything unparseable
+    disables the feature rather than guessing, since guessing wrong on this value
+    is what makes the header trustable when it should not be.
+    """
+    raw = os.environ.get("MCP_TRUST_PROXY", "").strip().lower()
+    if not raw or raw in ("0", "false"):
+        return 0
+    if raw == "true":
+        return 1
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        logger.warning(
+            "MCP_TRUST_PROXY=%r is not a hop count; ignoring it and keying the "
+            "rate limiter on the peer address",
+            raw,
+        )
+        return 0
+
+
 def build_app(host: str = "127.0.0.1") -> Starlette:
     """Build the Starlette ASGI app exposing the MCP server over Streamable HTTP."""
     # Services are process-global and shared with the stdio transport; the SDK owns
@@ -167,7 +204,7 @@ def build_app(host: str = "127.0.0.1") -> Starlette:
         RateLimitMiddleware,
         limit=int(os.environ.get("MCP_RATE_LIMIT", "60")),
         window=int(os.environ.get("MCP_RATE_WINDOW", "60")),
-        trust_proxy=os.environ.get("MCP_TRUST_PROXY", "").strip() in ("1", "true"),
+        trusted_hops=_trusted_proxy_hops(),
     )
 
     cors_origins = os.environ.get("MCP_CORS_ORIGINS", "*")
