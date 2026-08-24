@@ -1,0 +1,63 @@
+name: Docker image
+
+on:
+  push:
+    branches: [main, "feat/**"]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "src/**"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "src/**"
+      - ".github/workflows/docker.yml"
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t celo-mcp:ci .
+
+      - name: Run container
+        run: |
+          docker run -d --rm --name celo-mcp-ci -p 3000:3000 celo-mcp:ci
+          # wait for the app to come up (service init + session manager start)
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/health > /dev/null 2>&1; then
+              echo "up after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Health check responds
+        run: |
+          curl -fsS http://127.0.0.1:3000/health | tee /tmp/health.json
+          grep -q '"status":"ok"' /tmp/health.json
+
+      - name: MCP endpoint completes an initialize handshake
+        run: |
+          code=$(curl -s -o /tmp/mcp.txt -w '%{http_code}' -X POST http://127.0.0.1:3000/mcp \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}')
+          echo "status=$code"
+          cat /tmp/mcp.txt
+          test "$code" = "200"
+          grep -q '"serverInfo"' /tmp/mcp.txt
+
+      - name: Container logs (always)
+        if: always()
+        run: docker logs celo-mcp-ci || true
+
+      - name: Stop container
+        if: always()
+        run: docker stop celo-mcp-ci || true

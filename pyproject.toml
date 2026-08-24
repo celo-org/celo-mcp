@@ -21,6 +21,8 @@ dependencies = [
     "requests>=2.31.0",
     "urllib3>=2.0.0",
     "PyYAML>=6.0.0",
+    "starlette>=0.37.0",
+    "uvicorn>=0.30.0",
 ]
 keywords = ["mcp", "celo", "blockchain", "web3", "ai", "llm"]
 classifiers = [
@@ -38,6 +40,7 @@ Issues = "https://github.com/viral-sangani/celo-mcp/issues"
 
 [project.scripts]
 celo-mcp = "celo_mcp.server:main_sync"
+celo-mcp-server = "celo_mcp.server:cli"
 
 [project.optional-dependencies]
 dev = [
