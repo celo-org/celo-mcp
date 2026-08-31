@@ -1597,7 +1597,15 @@ class StakingService:
 
         # Get data needed for capacity calculation
         try:
+            locked_gold_contract = self.client.w3.eth.contract(
+                address=Web3.to_checksum_address(self.LOCKED_GOLD_ADDRESS),
+                abi=self.LOCKED_GOLD_ABI,
+            )
+
             total_locked_gold, all_validators = await asyncio.gather(
+                loop.run_in_executor(
+                    None, locked_gold_contract.functions.getTotalLockedGold().call
+                ),
                 loop.run_in_executor(
                     None, validators_contract.functions.getRegisteredValidators().call
                 ),
@@ -1608,7 +1616,7 @@ class StakingService:
                 logger.warning(
                     f"Could not get total locked gold: {total_locked_gold}, using default estimate"
                 )
-                total_locked_gold = total_votes if total_votes else votes * 100
+                total_locked_gold = votes * 100
 
             if isinstance(all_validators, Exception):
                 logger.warning(
@@ -1622,7 +1630,7 @@ class StakingService:
             logger.warning(
                 f"Could not get capacity calculation data: {e}, using defaults"
             )
-            total_locked_gold = total_votes if total_votes else votes * 100
+            total_locked_gold = votes * 100
             total_validators = 110
 
         capacity = await self._calculate_group_capacity(
@@ -1822,7 +1830,7 @@ class StakingService:
                 logger.warning(
                     f"Could not get total locked gold: {total_locked_gold}, using default estimate"
                 )
-                total_locked_gold = total_votes if total_votes else votes * 100
+                total_locked_gold = votes * 100
 
             if isinstance(all_validators, Exception):
                 logger.warning(
@@ -1836,7 +1844,7 @@ class StakingService:
             logger.warning(
                 f"Could not get capacity calculation data: {e}, using defaults"
             )
-            total_locked_gold = total_votes if total_votes else votes * 100
+            total_locked_gold = votes * 100
             total_validators = 110
 
         capacity = await self._calculate_group_capacity(
