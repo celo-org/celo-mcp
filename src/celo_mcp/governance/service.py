@@ -321,7 +321,9 @@ class GovernanceService:
                 current_page = (
                     page
                     if pagination_mode == "page"
-                    else (calculated_offset // page_size) + 1 if page_size > 0 else 1
+                    else (calculated_offset // page_size) + 1
+                    if page_size > 0
+                    else 1
                 )
                 has_next_page = calculated_offset + calculated_limit < total_available
                 has_previous_page = calculated_offset > 0
@@ -430,7 +432,9 @@ class GovernanceService:
             current_page = (
                 page
                 if pagination_mode == "page"
-                else (calculated_offset // page_size) + 1 if page_size > 0 else 1
+                else (calculated_offset // page_size) + 1
+                if page_size > 0
+                else 1
             )
             has_next_page = calculated_offset + calculated_limit < total_available
             has_previous_page = calculated_offset > 0
@@ -1186,7 +1190,9 @@ class GovernanceService:
                     is_approved=is_approved,
                     upvotes=upvotes,
                     votes=VoteAmounts(
-                        yes=0, no=0, abstain=0  # Minimal vote data to save time
+                        yes=0,
+                        no=0,
+                        abstain=0,  # Minimal vote data to save time
                     ),
                 )
 
