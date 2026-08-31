@@ -796,6 +796,29 @@ class StakingService:
                 page, page_size, offset, limit
             )
 
+    @staticmethod
+    def _total_votes_or_fallback(total_votes, eligible_group_votes) -> int:
+        """Turn a gathered total-votes result back into a number.
+
+        `asyncio.gather(..., return_exceptions=True)` hands back the exception
+        rather than raising it. This particular value is both the stand-in for
+        total locked gold and formatted for display, so an exception carried past
+        here surfaces as arithmetic or formatting failing somewhere far from the
+        call that actually broke.
+
+        The per-group eligible votes are the breakdown of exactly this quantity,
+        so summing them is a faithful substitute wherever it is available.
+        """
+        if not isinstance(total_votes, Exception):
+            return total_votes
+
+        fallback = sum(eligible_group_votes) if eligible_group_votes else 0
+        logger.warning(
+            f"Could not get total votes: {total_votes}, "
+            f"using the eligible-group total instead ({fallback})"
+        )
+        return fallback
+
     async def _get_validator_groups_multicall(
         self,
         page: int | None = None,
@@ -857,6 +880,10 @@ class StakingService:
             )
 
             # Handle exceptions and set defaults
+            total_votes = self._total_votes_or_fallback(
+                total_votes, eligible_group_votes
+            )
+
             if isinstance(total_locked_gold, Exception):
                 logger.warning(
                     f"Could not get total locked gold: {total_locked_gold}, "
@@ -918,7 +945,15 @@ class StakingService:
             eligible_group_votes = None
 
             # Handle exceptions for fallback
+            total_votes = self._total_votes_or_fallback(
+                total_votes, eligible_group_votes
+            )
+
             if isinstance(total_locked_gold, Exception):
+                logger.warning(
+                    f"Could not get total locked gold: {total_locked_gold}, "
+                    f"using total votes as fallback"
+                )
                 total_locked_gold = total_votes
             if isinstance(all_validators, Exception):
                 total_validators = 110
