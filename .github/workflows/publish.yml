@@ -32,7 +32,10 @@ jobs:
 
       - name: Update version in pyproject.toml
         run: |
-          sed -i 's/version = ".*"/version = "${{ steps.get_version.outputs.version }}"/' pyproject.toml
+          # anchored: an unanchored `version = ".*"` also matches the tails of
+          # `target-version = "py311"` and `python_version = "3.11"`, rewriting
+          # the ruff and mypy settings to the release number
+          sed -i 's/^version = ".*"/version = "${{ steps.get_version.outputs.version }}"/' pyproject.toml
           cat pyproject.toml | grep version
 
       - name: Build package

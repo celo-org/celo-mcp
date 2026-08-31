@@ -142,7 +142,7 @@ class StakingService:
         validators_abi_path = os.path.join(config_dir, "Validators.json")
 
         try:
-            with open(validators_abi_path, "r") as f:
+            with open(validators_abi_path) as f:
                 validators_config = json.load(f)
                 self.VALIDATORS_ABI = validators_config["abi"]
         except (FileNotFoundError, KeyError, json.JSONDecodeError) as e:
@@ -216,7 +216,8 @@ class StakingService:
         Determine the correct index for lastSlashed in getValidatorGroup response.
 
         Based on celo-mondo's proven implementation:
-        - 7-output ABI: lastSlashed is at index 6 (slashingMultiplier in some docs, but actually lastSlashed)
+        - 7-output ABI: lastSlashed is at index 6 (called slashingMultiplier in
+          some docs, but it is lastSlashed)
         - 5-output ABI: lastSlashed is at index 1 (fallback ABI)
 
         Returns:
@@ -230,13 +231,15 @@ class StakingService:
                     # Fallback ABI structure: lastSlashed is at index 1
                     return 1
                 elif len(outputs) == 7:
-                    # Official ABI structure: lastSlashed is at index 6 (verified by celo-mondo)
+                    # Official ABI structure: lastSlashed is at index 6
+                    # (verified by celo-mondo)
                     return 6
                 break
 
         # Default to 6 (official ABI structure)
         logger.warning(
-            "Could not determine lastSlashed index from ABI, defaulting to 6 (celo-mondo compatible)"
+            "Could not determine lastSlashed index from ABI, "
+            "defaulting to 6 (celo-mondo compatible)"
         )
         return 6
 

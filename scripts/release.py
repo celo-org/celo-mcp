@@ -87,8 +87,13 @@ def create_release(version, dry_run=False):
         # Update version
         update_version(version)
 
+        # Re-lock: uv.lock records the project's own version, so bumping
+        # pyproject.toml without this leaves `uv lock --check` and
+        # `uv sync --locked` failing on main until something else refreshes it.
+        run_command("uv lock")
+
         # Commit changes
-        run_command("git add pyproject.toml")
+        run_command("git add pyproject.toml uv.lock")
         run_command(f'git commit -m "Bump version to {version}"')
 
         # Create and push tag
