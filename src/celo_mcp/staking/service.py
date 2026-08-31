@@ -890,24 +890,27 @@ class StakingService:
                 f"getTotalVotesForEligibleValidatorGroups failed: {e}, "
                 f"falling back to getEligibleValidatorGroups"
             )
-            eligible_group_addresses, total_votes, total_locked_gold, all_validators = (
-                await asyncio.gather(
-                    loop.run_in_executor(
-                        None,
-                        election_contract.functions.getEligibleValidatorGroups().call,
-                    ),
-                    loop.run_in_executor(
-                        None, election_contract.functions.getTotalVotes().call
-                    ),
-                    loop.run_in_executor(
-                        None, locked_gold_contract.functions.getTotalLockedGold().call
-                    ),
-                    loop.run_in_executor(
-                        None,
-                        validators_contract.functions.getRegisteredValidators().call,
-                    ),
-                    return_exceptions=True,
-                )
+            (
+                eligible_group_addresses,
+                total_votes,
+                total_locked_gold,
+                all_validators,
+            ) = await asyncio.gather(
+                loop.run_in_executor(
+                    None,
+                    election_contract.functions.getEligibleValidatorGroups().call,
+                ),
+                loop.run_in_executor(
+                    None, election_contract.functions.getTotalVotes().call
+                ),
+                loop.run_in_executor(
+                    None, locked_gold_contract.functions.getTotalLockedGold().call
+                ),
+                loop.run_in_executor(
+                    None,
+                    validators_contract.functions.getRegisteredValidators().call,
+                ),
+                return_exceptions=True,
             )
             eligible_group_votes = None
 
@@ -1488,6 +1491,77 @@ class StakingService:
             logger.info("Falling back to individual contract calls")
             return await self._get_validator_group_details_individual(group_address)
 
+    async def _fetch_capacity_inputs(
+        self,
+        loop,
+        election_contract,
+        validators_contract,
+        group_votes: int,
+    ) -> tuple[int, int]:
+        """Fetch the system-wide inputs the capacity formula needs.
+
+        Both group-details paths need the same two numbers and degrade the same
+        way. They used to hold byte-identical copies of this block, which is how
+        the same defect came to exist in two places at once.
+
+        Returns (total_locked_gold, total_validators). Neither call is allowed to
+        fail the request: capacity is a derived convenience, not the answer the
+        caller asked for.
+        """
+        try:
+            locked_gold_contract = self.client.w3.eth.contract(
+                address=Web3.to_checksum_address(self.LOCKED_GOLD_ADDRESS),
+                abi=self.LOCKED_GOLD_ABI,
+            )
+
+            total_locked_gold, all_validators, total_votes = await asyncio.gather(
+                loop.run_in_executor(
+                    None, locked_gold_contract.functions.getTotalLockedGold().call
+                ),
+                loop.run_in_executor(
+                    None, validators_contract.functions.getRegisteredValidators().call
+                ),
+                loop.run_in_executor(
+                    None, election_contract.functions.getTotalVotes().call
+                ),
+                return_exceptions=True,
+            )
+
+            if isinstance(total_locked_gold, Exception):
+                # System-wide total votes tracks total locked gold closely enough
+                # to stand in for it, which is the substitution the paginated path
+                # already makes. This group's own votes do not: they are smaller by
+                # orders of magnitude that vary with the group.
+                logger.warning(
+                    f"Could not get total locked gold: {total_locked_gold}, "
+                    f"using total votes as fallback"
+                )
+                if isinstance(total_votes, Exception) or not total_votes:
+                    logger.warning(
+                        f"Could not get total votes either: {total_votes}, "
+                        f"estimating from this group's votes"
+                    )
+                    total_locked_gold = group_votes * 100
+                else:
+                    total_locked_gold = total_votes
+
+            if isinstance(all_validators, Exception):
+                logger.warning(
+                    f"Could not get all validators: {all_validators}, "
+                    f"using default count"
+                )
+                total_validators = 110
+            else:
+                total_validators = len(all_validators)
+
+            return total_locked_gold, total_validators
+
+        except Exception as e:
+            logger.warning(
+                f"Could not get capacity calculation data: {e}, using defaults"
+            )
+            return group_votes * 100, 110
+
     async def _get_validator_group_details_multicall(
         self, group_address: str
     ) -> ValidatorGroup:
@@ -1596,34 +1670,9 @@ class StakingService:
         avg_score = (total_score / num_members) if num_members > 0 else 0
 
         # Get data needed for capacity calculation
-        try:
-            total_locked_gold, all_validators = await asyncio.gather(
-                loop.run_in_executor(
-                    None, validators_contract.functions.getRegisteredValidators().call
-                ),
-                return_exceptions=True,
-            )
-
-            if isinstance(total_locked_gold, Exception):
-                logger.warning(
-                    f"Could not get total locked gold: {total_locked_gold}, using default estimate"
-                )
-                total_locked_gold = total_votes if total_votes else votes * 100
-
-            if isinstance(all_validators, Exception):
-                logger.warning(
-                    f"Could not get all validators: {all_validators}, using default count"
-                )
-                total_validators = 110
-            else:
-                total_validators = len(all_validators)
-
-        except Exception as e:
-            logger.warning(
-                f"Could not get capacity calculation data: {e}, using defaults"
-            )
-            total_locked_gold = total_votes if total_votes else votes * 100
-            total_validators = 110
+        total_locked_gold, total_validators = await self._fetch_capacity_inputs(
+            loop, election_contract, validators_contract, votes
+        )
 
         capacity = await self._calculate_group_capacity(
             num_members,
@@ -1802,42 +1851,9 @@ class StakingService:
         avg_score = (total_score / num_members) if num_members > 0 else 0
 
         # Get data needed for capacity calculation
-        try:
-            locked_gold_contract = self.client.w3.eth.contract(
-                address=Web3.to_checksum_address(self.LOCKED_GOLD_ADDRESS),
-                abi=self.LOCKED_GOLD_ABI,
-            )
-
-            total_locked_gold, all_validators = await asyncio.gather(
-                loop.run_in_executor(
-                    None, locked_gold_contract.functions.getTotalLockedGold().call
-                ),
-                loop.run_in_executor(
-                    None, validators_contract.functions.getRegisteredValidators().call
-                ),
-                return_exceptions=True,
-            )
-
-            if isinstance(total_locked_gold, Exception):
-                logger.warning(
-                    f"Could not get total locked gold: {total_locked_gold}, using default estimate"
-                )
-                total_locked_gold = total_votes if total_votes else votes * 100
-
-            if isinstance(all_validators, Exception):
-                logger.warning(
-                    f"Could not get all validators: {all_validators}, using default count"
-                )
-                total_validators = 110
-            else:
-                total_validators = len(all_validators)
-
-        except Exception as e:
-            logger.warning(
-                f"Could not get capacity calculation data: {e}, using defaults"
-            )
-            total_locked_gold = total_votes if total_votes else votes * 100
-            total_validators = 110
+        total_locked_gold, total_validators = await self._fetch_capacity_inputs(
+            loop, election_contract, validators_contract, votes
+        )
 
         capacity = await self._calculate_group_capacity(
             num_members,
