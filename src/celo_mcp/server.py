@@ -19,6 +19,7 @@ from mcp.types import (
 
 from .blockchain_data import BlockchainDataService
 from .contracts import ContractService
+from .faucet import SUPPORTED_NETWORKS, FaucetService
 from .governance import GovernanceService
 from .nfts import NFTService
 from .staking import StakingService
@@ -46,6 +47,7 @@ contract_service: ContractService = None
 transaction_service: TransactionService = None
 governance_service: GovernanceService = None
 staking_service: StakingService = None
+faucet_service: FaucetService = None
 
 
 async def list_tools() -> list[Tool]:
@@ -374,13 +376,78 @@ async def list_tools() -> list[Tool]:
             ),
             inputSchema={"type": "object", "properties": {}, "required": []},
         ),
+        # Faucet operations
+        Tool(
+            name="request_faucet_funds",
+            description=(
+                "Request testnet CELO from the Celo faucet for an address. "
+                "Testnet only (celo-sepolia); there is no mainnet faucet. "
+                "Dispenses CELO only - no cUSD or other stablecoins. Requires "
+                "the CELO_MCP_FAUCET_API_KEY environment variable, set to a "
+                "key created at https://faucet.celo.org/keys. Limited to 10 "
+                "requests per 24 hours. Returns the payout transaction hash if "
+                "it lands while the request is open, otherwise a request_key "
+                "to check with get_faucet_request_status."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "beneficiary": {
+                        "type": "string",
+                        "description": "The address to send testnet funds to.",
+                    },
+                    "network": {
+                        "type": "string",
+                        "description": "The testnet to fund on.",
+                        "enum": list(SUPPORTED_NETWORKS),
+                        "default": "celo-sepolia",
+                    },
+                    "wait": {
+                        "type": "boolean",
+                        "description": (
+                            "Wait for the payout to land before returning "
+                            "(up to 20 seconds). Set false to return the "
+                            "request key immediately."
+                        ),
+                        "default": True,
+                    },
+                },
+                "required": ["beneficiary"],
+            },
+        ),
+        Tool(
+            name="get_faucet_request_status",
+            description=(
+                "Check whether a queued faucet request has paid out, using the "
+                "request_key returned by request_faucet_funds. Returns the "
+                "payout transaction hash once the status is Done."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "request_key": {
+                        "type": "string",
+                        "description": (
+                            "The request key returned by request_faucet_funds."
+                        ),
+                    },
+                    "network": {
+                        "type": "string",
+                        "description": "The testnet the request was made on.",
+                        "enum": list(SUPPORTED_NETWORKS),
+                        "default": "celo-sepolia",
+                    },
+                },
+                "required": ["request_key"],
+            },
+        ),
     ]
 
 
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     global blockchain_service, token_service, nft_service, contract_service
-    global transaction_service, governance_service, staking_service
+    global transaction_service, governance_service, staking_service, faucet_service
 
     try:
         # Blockchain data operations
@@ -564,6 +631,30 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 )
             ]
 
+        # Faucet operations
+        elif name == "request_faucet_funds":
+            beneficiary = arguments["beneficiary"]
+            network = arguments.get("network", "celo-sepolia")
+            wait = arguments.get("wait", True)
+            result = await faucet_service.request_funds(beneficiary, network, wait)
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
+
+        elif name == "get_faucet_request_status":
+            request_key = arguments["request_key"]
+            network = arguments.get("network", "celo-sepolia")
+            result = await faucet_service.get_request_status(request_key, network)
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
+                )
+            ]
+
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -598,7 +689,7 @@ server = Server(
 def init_services() -> None:
     """Instantiate the module-global services. Shared by every transport."""
     global blockchain_service, token_service, nft_service, contract_service
-    global transaction_service, governance_service, staking_service
+    global transaction_service, governance_service, staking_service, faucet_service
 
     # Setup logging
     setup_logging()
@@ -615,9 +706,13 @@ def init_services() -> None:
     governance_service = GovernanceService(client)
     staking_service = StakingService(client)
 
+    # The faucet is reached over plain HTTP and never touches an RPC endpoint,
+    # so it takes no client.
+    faucet_service = FaucetService()
+
     logger.info(
         "Initialized services: Blockchain Data, Tokens, NFTs, Contracts, "
-        "Transactions, Governance, Staking"
+        "Transactions, Governance, Staking, Faucet"
     )
 
 

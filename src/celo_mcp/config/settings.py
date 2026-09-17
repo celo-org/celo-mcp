@@ -18,6 +18,17 @@ class Settings(BaseSettings):
         default=True, description="Whether to use testnet (Alfajores)"
     )
 
+    # Faucet Configuration
+    faucet_api_key: str | None = Field(
+        default=None,
+        description=(
+            "Celo faucet API key, used to request testnet funds. Create one at "
+            "https://faucet.celo.org/keys. Read from the environment rather "
+            "than passed as a tool argument so the secret never enters the "
+            "model's context."
+        ),
+    )
+
     # Logging Configuration
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = Field(
         default="INFO", description="Logging level"

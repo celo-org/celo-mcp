@@ -94,6 +94,7 @@ Configuration (environment variables):
 | `MCP_TRUST_PROXY` | Number of `X-Forwarded-For` hops your infrastructure appends, so the rate limiter keys on the client rather than the proxy address. `1` for a single reverse proxy, `2` behind a Google external load balancer. Counted from the right — see [deployment](docs/DEPLOYMENT.md) | unset |
 | `MCP_AUTH_TOKEN` | If set, requires `Authorization: Bearer <token>` on `/mcp` | unset (open) |
 | `CELO_RPC_URL` | Celo RPC endpoint | (existing default) |
+| `CELO_MCP_FAUCET_API_KEY` | Enables the faucet tools. Create one at [faucet.celo.org/keys](https://faucet.celo.org/keys) — see [Faucet access](#faucet-access) | unset (faucet tools disabled) |
 
 `GET /health` returns `200` for hosting health checks. See
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for container/hosting instructions.
@@ -223,6 +224,54 @@ celo-mcp-server
 21. **get_total_staking_info**
     - Get network-wide staking information including total votes and participation metrics
     - No parameters required
+
+#### Faucet Operations
+
+Both faucet tools are testnet-only and require `CELO_MCP_FAUCET_API_KEY` (see
+[Faucet access](#faucet-access) below).
+
+22. **request_faucet_funds**
+
+    - Request testnet CELO for an address. Returns the payout transaction hash if it lands while the request is open, otherwise a `request_key` to poll with
+    - Dispenses **CELO only** — the API-key path does not send cUSD or other stablecoins
+    - Parameters: `beneficiary`, optional `network` (`celo-sepolia`), optional `wait` (default `true`)
+
+23. **get_faucet_request_status**
+    - Check whether a queued faucet request has paid out
+    - Parameters: `request_key`, optional `network` (`celo-sepolia`)
+
+### Faucet access
+
+The faucet's browser flow is gated on reCAPTCHA v3, which scores headless
+callers badly, so the faucet tools use its API-key path instead. Create a key at
+[faucet.celo.org/keys](https://faucet.celo.org/keys) (sign in with GitHub; up to
+2 keys, 90-day expiry) and set it in your MCP client's `env` block:
+
+```json
+{
+  "mcpServers": {
+    "celo-mcp": {
+      "command": "uvx",
+      "args": ["celo-mcp"],
+      "env": { "CELO_MCP_FAUCET_API_KEY": "cfk_..." }
+    }
+  }
+}
+```
+
+The key is read from the environment and never passed as a tool argument, so it
+does not enter the model's context or the conversation transcript.
+
+Limits are set by the faucet, not by this server: **10 requests per 24 hours**,
+bound to your GitHub account rather than the key — holding two keys does not
+double the allowance. Global daily and 10-minute burst ceilings apply across all
+keys on top of that. `celo-sepolia` is the only supported network; there is no
+mainnet faucet.
+
+> **Deployment note:** the HTTP transport is open unless `MCP_AUTH_TOKEN` is
+> set. Only configure a faucet key for stdio or authenticated deployments —
+> otherwise anyone reaching `/mcp` can spend your daily allowance on arbitrary
+> addresses, and the key can be revoked for abuse.
 
 ## Key Features
 
