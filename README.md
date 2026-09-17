@@ -233,7 +233,7 @@ Both faucet tools are testnet-only and require `CELO_MCP_FAUCET_API_KEY` (see
 22. **request_faucet_funds**
 
     - Request testnet CELO for an address. Returns the payout transaction hash if it lands while the request is open, otherwise a `request_key` to poll with
-    - Dispenses **CELO only** — the API-key path does not send cUSD or other stablecoins
+    - Dispenses **CELO only** — the API-key path does not send USDm or other stablecoins
     - Parameters: `beneficiary`, optional `network` (`celo-sepolia`), optional `wait` (default `true`)
 
 23. **get_faucet_request_status**
