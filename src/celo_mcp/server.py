@@ -382,10 +382,12 @@ async def list_tools() -> list[Tool]:
             description=(
                 "Request testnet CELO from the Celo faucet for an address. "
                 "Testnet only (celo-sepolia); there is no mainnet faucet. "
-                "Dispenses CELO only - no USDm or other stablecoins. Requires "
-                "the CELO_MCP_FAUCET_API_KEY environment variable, set to a "
-                "key created at https://faucet.celo.org/keys. Limited to 10 "
-                "requests per 24 hours. Returns the payout transaction hash if "
+                "Sends 3 CELO per request; dispenses CELO only - no USDm or "
+                "other stablecoins. Requires the CELO_MCP_FAUCET_API_KEY "
+                "environment variable, set to a key created at "
+                "https://faucet.celo.org/keys. Limited to 10 requests per 24 "
+                "hours, per account and per beneficiary address. Returns the "
+                "payout transaction hash if "
                 "it lands while the request is open, otherwise a request_key "
                 "to check with get_faucet_request_status."
             ),

@@ -233,7 +233,7 @@ Both faucet tools are testnet-only and require `CELO_MCP_FAUCET_API_KEY` (see
 22. **request_faucet_funds**
 
     - Request testnet CELO for an address. Returns the payout transaction hash if it lands while the request is open, otherwise a `request_key` to poll with
-    - Dispenses **CELO only** — the API-key path does not send USDm or other stablecoins
+    - Sends **3 CELO** per request, and **CELO only** — no USDm or other stablecoins
     - Parameters: `beneficiary`, optional `network` (`celo-sepolia`), optional `wait` (default `true`)
 
 23. **get_faucet_request_status**
@@ -263,10 +263,15 @@ The key is read from the environment and never passed as a tool argument, so it
 does not enter the model's context or the conversation transcript.
 
 Limits are set by the faucet, not by this server: **10 requests per 24 hours**,
-bound to your GitHub account rather than the key — holding two keys does not
-double the allowance. Global daily and 10-minute burst ceilings apply across all
-keys on top of that. `celo-sepolia` is the only supported network; there is no
-mainnet faucet.
+counted per GitHub account and per beneficiary address — holding two keys does
+not double the allowance. Global daily and 10-minute burst ceilings apply across
+all keys on top of that. `celo-sepolia` (chain ID 11142220) is the only
+supported network; there is no mainnet faucet.
+
+The faucet publishes its API contract at
+[openapi.json](https://faucet.celo.org/openapi.json) and
+[llms-full.txt](https://faucet.celo.org/llms-full.txt); treat those as the source
+of truth if amounts or limits change.
 
 > **Deployment note:** the HTTP transport is open unless `MCP_AUTH_TOKEN` is
 > set. Only configure a faucet key for stdio or authenticated deployments —
