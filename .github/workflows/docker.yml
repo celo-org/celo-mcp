@@ -1,12 +1,14 @@
 name: Docker image
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, "feat/**"]
     paths:
       - "Dockerfile"
       - ".dockerignore"
       - "pyproject.toml"
+      - "uv.lock"
       - "src/**"
       - ".github/workflows/docker.yml"
   pull_request:
@@ -14,6 +16,7 @@ on:
       - "Dockerfile"
       - ".dockerignore"
       - "pyproject.toml"
+      - "uv.lock"
       - "src/**"
       - ".github/workflows/docker.yml"
 
