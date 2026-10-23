@@ -12,10 +12,19 @@ class Settings(BaseSettings):
     # RPC Configuration
     rpc_url: str | None = Field(
         default=None,
-        description="Celo RPC URL (defaults to Alfajores testnet if not set)",
+        description=(
+            "Celo RPC URL. Defaults to the public endpoint for the selected "
+            "network: Forno on mainnet, or Celo Sepolia when use_testnet is set."
+        ),
     )
     use_testnet: bool = Field(
-        default=True, description="Whether to use testnet (Alfajores)"
+        default=False,
+        description=(
+            "Whether to use Celo Sepolia, the live testnet. Defaults to "
+            "mainnet. This field previously defaulted to True but was never "
+            "read, so mainnet has always been the actual behaviour; the "
+            "default now matches it."
+        ),
     )
 
     # Faucet Configuration
