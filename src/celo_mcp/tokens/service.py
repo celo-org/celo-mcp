@@ -51,27 +51,37 @@ ERC20_ABI = [
     },
 ]
 
-# Standard Celo token addresses
+# Standard Celo token addresses.
+#
+# Mento renamed its stablecoins: cUSD/cEUR/cREAL are now USDm/EURm/BRLm. On
+# mainnet the contracts were renamed in place, so the addresses are unchanged
+# and symbol() now returns the new names. On Celo Sepolia the renamed tokens
+# are separate deployments.
+#
+# The testnet entries were Alfajores addresses, which have no contract code on
+# Celo Sepolia.
 CELO_TOKENS = {
     "CELO": {
         "mainnet": "0x471EcE3750Da237f93B8E339c536989b8978a438",
-        "testnet": "0xF194afDf50B03e69Bd7D057c1Aa9e10c9954E4C9",
+        # GoldToken resolves to the same address on both networks.
+        "testnet": "0x471EcE3750Da237f93B8E339c536989b8978a438",
     },
-    "cUSD": {
+    "USDm": {
         "mainnet": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
-        "testnet": "0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1",
+        "testnet": "0xdE9e4C3ce781b4bA68120d6261cbad65ce0aB00b",
     },
-    "cEUR": {
+    "EURm": {
         "mainnet": "0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73",
-        "testnet": "0x10c892A6EC43a53E45D0B916B4b7D383B1b78C0F",
+        "testnet": "0xA99dC247d6b7B2E3ab48a1fEE101b83cD6aCd82a",
     },
-    "cREAL": {
+    "BRLm": {
         "mainnet": "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787",
-        "testnet": "0xE4D517785D091D3c54818832dB6094bcc2744545",
+        "testnet": "0x2294298942fdc79417DE9E0D740A4957E0e7783a",
     },
 }
 
-# Comprehensive stable token addresses for Celo Mainnet
+# Comprehensive stable token addresses for Celo Mainnet.
+# Symbols and names match what each contract reports on-chain.
 STABLE_TOKENS = {
     "CELO": {
         "address": "0x471EcE3750Da237f93B8E339c536989b8978a438",
@@ -79,52 +89,52 @@ STABLE_TOKENS = {
         "name": "Celo Gold Token",
         "decimals": 18,
     },
-    "cUSD": {
+    "USDm": {
         "address": "0x765DE816845861e75A25fCA122bb6898B8B1282a",
-        "symbol": "cUSD",
-        "name": "Celo Dollar",
+        "symbol": "USDm",
+        "name": "Mento Dollar",
         "decimals": 18,
     },
-    "cEUR": {
+    "EURm": {
         "address": "0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73",
-        "symbol": "cEUR",
-        "name": "Celo Euro",
+        "symbol": "EURm",
+        "name": "Mento Euro",
         "decimals": 18,
     },
-    "cREAL": {
+    "BRLm": {
         "address": "0xe8537a3d056DA446677B9E9d6c5dB704EaAb4787",
-        "symbol": "cREAL",
-        "name": "Celo Brazilian Real",
+        "symbol": "BRLm",
+        "name": "Mento Brazilian Real",
         "decimals": 18,
     },
-    "eXOF": {
+    "XOFm": {
         "address": "0x73F93dcc49cB8A239e2032663e9475dd5ef29A08",
-        "symbol": "eXOF",
-        "name": "Electronic West African CFA franc",
+        "symbol": "XOFm",
+        "name": "Mento West African CFA franc",
         "decimals": 18,
     },
-    "cKES": {
+    "KESm": {
         "address": "0x456a3D042C0DbD3db53D5489e98dFb038553B0d0",
-        "symbol": "cKES",
-        "name": "Celo Kenyan Shilling",
+        "symbol": "KESm",
+        "name": "Mento Kenyan Shilling",
         "decimals": 18,
     },
-    "PUSO": {
+    "PHPm": {
         "address": "0x105d4A9306D2E55a71d2Eb95B81553AE1dC20d7B",
-        "symbol": "PUSO",
-        "name": "Philippine Peso",
+        "symbol": "PHPm",
+        "name": "Mento Philippine Peso",
         "decimals": 18,
     },
-    "cCOP": {
+    "COPm": {
         "address": "0x8A567e2aE79CA692Bd748aB832081C45de4041eA",
-        "symbol": "cCOP",
-        "name": "Celo Colombian Peso",
+        "symbol": "COPm",
+        "name": "Mento Colombian Peso",
         "decimals": 18,
     },
-    "cGHS": {
+    "GHSm": {
         "address": "0xfAeA5F3404bbA20D3cc2f8C4B0A888F55a3c7313",
-        "symbol": "cGHS",
-        "name": "Celo Ghanaian Cedi",
+        "symbol": "GHSm",
+        "name": "Mento Ghanaian Cedi",
         "decimals": 18,
     },
     "USDT": {
@@ -345,7 +355,7 @@ class TokenService:
             tasks.append(get_native_celo_balance())
 
             # Add stable token tasks
-            for token_symbol in ["cUSD", "cEUR", "cREAL"]:
+            for token_symbol in ["USDm", "EURm", "BRLm"]:
                 tasks.append(get_stable_token_balance(token_symbol))
 
             # Execute all tasks concurrently with timeout

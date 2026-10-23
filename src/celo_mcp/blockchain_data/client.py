@@ -15,27 +15,48 @@ from .models import Account, Block, NetworkInfo, Transaction
 
 logger = logging.getLogger(__name__)
 
+# Network endpoints. Celo Sepolia is the live testnet; Alfajores is sunset and
+# its endpoints and contracts no longer resolve.
+MAINNET_RPC_URL = "https://forno.celo.org"
+CELO_SEPOLIA_RPC_URL = "https://forno.celo-sepolia.celo-testnet.org"
+
+MAINNET_EXPLORER_URL = "https://explorer.celo.org"
+CELO_SEPOLIA_EXPLORER_URL = "https://celo-sepolia.blockscout.com"
+
+MAINNET_CHAIN_ID = 42220
+CELO_SEPOLIA_CHAIN_ID = 11142220
+
 
 class CeloClient:
     """Celo blockchain client with Web3 integration."""
 
-    def __init__(self, rpc_url: str | None = None, use_testnet: bool = False):
+    def __init__(self, rpc_url: str | None = None, use_testnet: bool | None = None):
         """Initialize Celo client.
 
+        Arguments take precedence over the environment, which takes precedence
+        over the mainnet default. Passing nothing reads CELO_MCP_RPC_URL and
+        CELO_MCP_USE_TESTNET.
+
         Args:
-            rpc_url: Custom RPC URL (optional)
-            use_testnet: Whether to use testnet
+            rpc_url: Custom RPC URL. Defaults to CELO_MCP_RPC_URL, then to the
+                public endpoint for the selected network.
+            use_testnet: Whether to use Celo Sepolia. Defaults to
+                CELO_MCP_USE_TESTNET.
         """
         self.settings = get_settings()
-        self.use_testnet = use_testnet
+        self.use_testnet = (
+            use_testnet if use_testnet is not None else self.settings.use_testnet
+        )
 
         # Set RPC URL
         if rpc_url:
             self.rpc_url = rpc_url
-        elif use_testnet:
-            self.rpc_url = "https://alfajores-forno.celo-testnet.org"
+        elif self.settings.rpc_url:
+            self.rpc_url = self.settings.rpc_url
+        elif self.use_testnet:
+            self.rpc_url = CELO_SEPOLIA_RPC_URL
         else:
-            self.rpc_url = "https://forno.celo.org"
+            self.rpc_url = MAINNET_RPC_URL
 
         # Initialize Web3 with timeout configuration
         session = requests.Session()
@@ -105,12 +126,12 @@ class CeloClient:
 
             network_info = NetworkInfo(
                 chain_id=chain_id,
-                network_name="Celo Testnet" if self.use_testnet else "Celo Mainnet",
+                network_name="Celo Sepolia" if self.use_testnet else "Celo Mainnet",
                 rpc_url=self.rpc_url,
                 block_explorer_url=(
-                    "https://explorer.celo.org"
-                    if not self.use_testnet
-                    else "https://explorer.celo.org/alfajores"
+                    CELO_SEPOLIA_EXPLORER_URL
+                    if self.use_testnet
+                    else MAINNET_EXPLORER_URL
                 ),
                 native_currency={"name": "Celo", "symbol": "CELO", "decimals": 18},
                 latest_block=latest_block,

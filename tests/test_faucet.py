@@ -10,12 +10,32 @@ import json
 import httpx
 import pytest
 
+import celo_mcp.faucet.service as faucet_service
+from celo_mcp.config import Settings
 from celo_mcp.faucet import FaucetService
 
 API_KEY = "cfk_prd_notarealkey_0123456789"
 ADDRESS = "0x1234567890123456789012345678901234567890"
 TX_HASH = "0x" + "ab" * 32
 REQUEST_KEY = "-Oabc123def456"
+
+
+@pytest.fixture(autouse=True)
+def no_ambient_api_key(monkeypatch):
+    """Keep a real key on the developer's machine from reaching these tests.
+
+    FaucetService falls back to settings when no key is passed, so where a key
+    is configured the "missing key" test would find one and never raise.
+    Deleting the environment variable is not enough: Settings also reads a
+    local .env, which survives monkeypatch.delenv. Replacing the lookup covers
+    both sources.
+    """
+    monkeypatch.delenv("CELO_MCP_FAUCET_API_KEY", raising=False)
+    monkeypatch.setattr(
+        faucet_service,
+        "get_settings",
+        lambda: Settings(faucet_api_key=None, _env_file=None),
+    )
 
 
 def _service(handler, api_key=API_KEY):
