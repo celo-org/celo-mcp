@@ -8,3 +8,13 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local configuration. Settings reads .env, and it holds the faucet API key,
+# so it must never be committed: keys found in public repositories are revoked.
+# .env.example is the committed template and is deliberately not ignored.
+.env
+.env.*
+!.env.example
+
+# macOS
+.DS_Store
