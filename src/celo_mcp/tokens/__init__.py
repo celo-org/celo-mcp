@@ -1,7 +1,7 @@
 """Token operations module for Celo MCP server."""
 
 from .models import (
-    CeloStableTokens,
+    MentoStableTokens,
     TokenAllowance,
     TokenBalance,
     TokenInfo,
@@ -17,5 +17,5 @@ __all__ = [
     "TokenTransfer",
     "TokenAllowance",
     "TokenMetadata",
-    "CeloStableTokens",
+    "MentoStableTokens",
 ]

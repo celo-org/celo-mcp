@@ -20,8 +20,8 @@ pip install -e .
 3. Set up environment variables (optional):
 
 ```bash
-export CELO_RPC_URL="https://forno.celo.org"  # Default: Celo mainnet
-export CELO_TESTNET_RPC_URL="https://alfajores-forno.celo-testnet.org"  # Alfajores testnet
+export CELO_MCP_RPC_URL="https://forno.celo.org"  # Default: Celo mainnet
+export CELO_MCP_USE_TESTNET=true                  # Use Celo Sepolia instead
 ```
 
 ## MCP Integration
@@ -93,7 +93,8 @@ Configuration (environment variables):
 | `MCP_RATE_LIMIT` / `MCP_RATE_WINDOW` | Requests per client per window (seconds); `/health` is exempt | `60` / `60` |
 | `MCP_TRUST_PROXY` | Number of `X-Forwarded-For` hops your infrastructure appends, so the rate limiter keys on the client rather than the proxy address. `1` for a single reverse proxy, `2` behind a Google external load balancer. Counted from the right — see [deployment](docs/DEPLOYMENT.md) | unset |
 | `MCP_AUTH_TOKEN` | If set, requires `Authorization: Bearer <token>` on `/mcp` | unset (open) |
-| `CELO_RPC_URL` | Celo RPC endpoint | (existing default) |
+| `CELO_MCP_RPC_URL` | Celo RPC endpoint | Forno for the selected network |
+| `CELO_MCP_USE_TESTNET` | Use Celo Sepolia (chain ID 11142220) instead of mainnet | `false` |
 | `CELO_MCP_FAUCET_API_KEY` | Enables the faucet tools. Create one at [faucet.celo.org/keys](https://faucet.celo.org/keys) — see [Faucet access](#faucet-access) | unset (faucet tools disabled) |
 
 `GET /health` returns `200` for hosting health checks. See
@@ -283,7 +284,7 @@ of truth if amounts or limits change.
 ### Token Support
 
 - **ERC20 Standard**: Full support for ERC20 tokens
-- **Celo Stable Tokens**: Built-in support for cUSD, cEUR, and cREAL
+- **Mento Stable Tokens**: Built-in support for USDm, EURm and BRLm (formerly cUSD, cEUR and cREAL), plus XOFm, KESm, PHPm, COPm and GHSm
 - **Balance Queries**: Get token balances with proper decimal formatting
 - **Token Information**: Retrieve name, symbol, decimals, and total supply
 
