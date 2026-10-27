@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any
 
@@ -15,16 +16,29 @@ from mcp.types import (
     PaginatedRequestParams,
     TextContent,
     Tool,
+    ToolAnnotations,
 )
+from pydantic import BaseModel
 
 from .blockchain_data import BlockchainDataService
 from .contracts import ContractService
+from .contracts.models import ContractCallResult, FunctionCall, GasEstimate
 from .faucet import SUPPORTED_NETWORKS, FaucetService
+from .faucet.models import FaucetRequestResult, FaucetStatusResult
 from .governance import GovernanceService
+from .governance.models import GovernanceProposalsResponse, ProposalDetailsResponse
 from .nfts import NFTService
 from .staking import StakingService
+from .staking.models import (
+    ActivatableStakes,
+    PaginatedValidatorGroups,
+    StakingBalances,
+    ValidatorGroup,
+)
 from .tokens import TokenService
+from .tokens.models import StableTokenBalances, TokenBalance, TokenInfo
 from .transactions import TransactionService
+from .transactions.models import GasFeeData, TransactionEstimate, TransactionRequest
 from .utils import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -36,6 +50,8 @@ class DateTimeEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
+        if isinstance(obj, bytes):
+            return "0x" + obj.hex()
         return super().default(obj)
 
 
@@ -50,8 +66,8 @@ staking_service: StakingService = None
 faucet_service: FaucetService = None
 
 
-async def list_tools() -> list[Tool]:
-    """List available tools."""
+def _tool_definitions() -> list[Tool]:
+    """Tool names, descriptions and input schemas, before output schemas."""
     return [
         Tool(
             name="get_network_status",
@@ -145,7 +161,51 @@ async def list_tools() -> list[Tool]:
                 "required": [],
             },
         ),
+        Tool(
+            name="get_account",
+            description=(
+                "Get an account's CELO balance (in wei and in CELO), nonce, and "
+                "whether the address is a contract or an externally owned "
+                "account. Contract bytecode is left out unless include_code is "
+                "true."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "address": {
+                        "type": "string",
+                        "description": "The account address.",
+                    },
+                    "include_code": {
+                        "type": "boolean",
+                        "description": (
+                            "Include the contract bytecode as a hex string. It "
+                            "can be tens of kilobytes, so it is off by default."
+                        ),
+                        "default": False,
+                    },
+                },
+                "required": ["address"],
+            },
+        ),
         # Token operations
+        Tool(
+            name="get_token_info",
+            description=(
+                "Get an ERC-20 token's name, symbol, decimals and total supply "
+                "(raw and formatted)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "token_address": {
+                        "type": "string",
+                        "description": "The contract address of the token.",
+                    }
+                },
+                "required": ["token_address"],
+            },
+        ),
         Tool(
             name="get_token_balance",
             description="Get the token balance for a specific address.",
@@ -199,6 +259,129 @@ async def list_tools() -> list[Tool]:
             name="get_gas_fee_data",
             description="Get current gas fee data including EIP-1559 fees.",
             inputSchema={"type": "object", "properties": {}, "required": []},
+        ),
+        # Contract operations
+        Tool(
+            name="call_contract_function",
+            description=(
+                "Call a contract function with eth_call and return its result. "
+                "Read-only: nothing is signed or sent, even for functions that "
+                "would change state. Integers larger than 2^53 are returned as "
+                "decimal strings and bytes as 0x-prefixed hex. A failed call "
+                "returns success false with the revert reason in error."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract_address": {
+                        "type": "string",
+                        "description": "The contract address.",
+                    },
+                    "function_name": {
+                        "type": "string",
+                        "description": "The function to call, as named in the ABI.",
+                    },
+                    "abi": {
+                        "type": ["array", "string"],
+                        "description": (
+                            "The contract ABI, as a JSON array or a JSON string. "
+                            "Only the entry for function_name is needed."
+                        ),
+                        "items": {"type": "object"},
+                    },
+                    "function_args": {
+                        "type": "array",
+                        "description": "Positional arguments for the function.",
+                        "default": [],
+                    },
+                    "from_address": {
+                        "type": "string",
+                        "description": "Address to call from (msg.sender).",
+                    },
+                },
+                "required": ["contract_address", "function_name", "abi"],
+            },
+        ),
+        Tool(
+            name="estimate_contract_gas",
+            description=(
+                "Estimate the gas a contract function call would use if sent from "
+                "from_address, and its cost at the current gas price. Nothing is "
+                "signed or sent. A call that would revert returns success false "
+                "with the reason in error."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "contract_address": {
+                        "type": "string",
+                        "description": "The contract address.",
+                    },
+                    "function_name": {
+                        "type": "string",
+                        "description": "The function to estimate, as named in the ABI.",
+                    },
+                    "abi": {
+                        "type": ["array", "string"],
+                        "description": (
+                            "The contract ABI, as a JSON array or a JSON string. "
+                            "Only the entry for function_name is needed."
+                        ),
+                        "items": {"type": "object"},
+                    },
+                    "from_address": {
+                        "type": "string",
+                        "description": "The address the call would be sent from.",
+                    },
+                    "function_args": {
+                        "type": "array",
+                        "description": "Positional arguments for the function.",
+                        "default": [],
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "CELO to send with the call, in wei.",
+                        "default": "0",
+                    },
+                },
+                "required": [
+                    "contract_address",
+                    "function_name",
+                    "abi",
+                    "from_address",
+                ],
+            },
+        ),
+        Tool(
+            name="estimate_transaction",
+            description=(
+                "Estimate the gas limit and CELO cost of a transaction at the "
+                "current gas price. Nothing is signed or sent."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "to": {
+                        "type": "string",
+                        "description": "The recipient address.",
+                    },
+                    "from_address": {
+                        "type": "string",
+                        "description": "The sender address.",
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "CELO to send, in wei.",
+                        "default": "0",
+                    },
+                    "data": {
+                        "type": "string",
+                        "description": "Hex-encoded calldata.",
+                        "default": "0x",
+                    },
+                },
+                "required": ["to", "from_address"],
+            },
         ),
         # Governance operations
         Tool(
@@ -446,223 +629,224 @@ async def list_tools() -> list[Tool]:
     ]
 
 
-async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
-    """Handle tool calls."""
-    global blockchain_service, token_service, nft_service, contract_service
-    global transaction_service, governance_service, staking_service, faucet_service
+# The pydantic model each tool returns. These tools advertise the model's JSON
+# schema as outputSchema and return structuredContent that matches it. Tools
+# that return plain dicts or lists (network status, blocks, transactions,
+# account, CELO balances, total staking) have no outputSchema yet.
+OUTPUT_MODELS: dict[str, type[BaseModel]] = {
+    "get_token_info": TokenInfo,
+    "get_token_balance": TokenBalance,
+    "get_stable_token_balance": StableTokenBalances,
+    "get_gas_fee_data": GasFeeData,
+    "call_contract_function": ContractCallResult,
+    "estimate_contract_gas": GasEstimate,
+    "estimate_transaction": TransactionEstimate,
+    "get_governance_proposals": GovernanceProposalsResponse,
+    "get_proposal_details": ProposalDetailsResponse,
+    "get_staking_balances": StakingBalances,
+    "get_activatable_stakes": ActivatableStakes,
+    "get_validator_groups": PaginatedValidatorGroups,
+    "get_validator_group_details": ValidatorGroup,
+    "request_faucet_funds": FaucetRequestResult,
+    "get_faucet_request_status": FaucetStatusResult,
+}
+
+# Everything except the faucet only reads from the chain.
+_WRITE_TOOLS = {"request_faucet_funds"}
+
+
+async def list_tools() -> list[Tool]:
+    """List available tools, with output schemas and read-only hints."""
+    tools = []
+    for tool in _tool_definitions():
+        update: dict[str, Any] = {
+            "annotations": ToolAnnotations(
+                read_only_hint=tool.name not in _WRITE_TOOLS,
+                open_world_hint=True,
+            )
+        }
+        model = OUTPUT_MODELS.get(tool.name)
+        if model is not None:
+            update["output_schema"] = model.model_json_schema(mode="serialization")
+        tools.append(tool.model_copy(update=update))
+    return tools
+
+
+_TOOL_REQUIRED_ARGS: dict[str, tuple[str, ...]] = {
+    tool.name: tuple(tool.input_schema.get("required", []))
+    for tool in _tool_definitions()
+}
+
+
+def _parse_abi(value: Any) -> list[dict[str, Any]]:
+    """Accept an ABI as a JSON array or as a JSON string holding one."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"abi is not valid JSON: {e}") from e
+    if not isinstance(value, list):
+        raise ValueError("abi must be a JSON array of ABI entries")
+    return value
+
+
+def _function_call(arguments: dict[str, Any]) -> FunctionCall:
+    return FunctionCall(
+        contract_address=arguments["contract_address"],
+        function_name=arguments["function_name"],
+        function_args=arguments.get("function_args") or [],
+        from_address=arguments.get("from_address"),
+        value=str(arguments.get("value", "0")),
+    )
+
+
+async def _get_account(arguments: dict[str, Any]) -> dict[str, Any]:
+    result = await blockchain_service.get_account_details(arguments["address"])
+    if not arguments.get("include_code", False):
+        result.pop("code", None)
+    return result
+
+
+async def _get_celo_balances(arguments: dict[str, Any]) -> list[dict[str, Any]]:
+    result = await token_service.get_celo_balances(arguments["address"])
+    return [balance.model_dump() for balance in result]
+
+
+# One handler per tool. Each takes the call arguments and returns either a
+# pydantic model (for tools listed in OUTPUT_MODELS) or plain JSON-able data.
+TOOL_HANDLERS: dict[str, Callable[[dict[str, Any]], Awaitable[Any]]] = {
+    # Blockchain data
+    "get_network_status": lambda a: blockchain_service.get_network_status(),
+    "get_block": lambda a: blockchain_service.get_block_details(
+        a["block_identifier"], a.get("include_transactions", False)
+    ),
+    "get_transaction": lambda a: blockchain_service.get_transaction_details(
+        a["tx_hash"]
+    ),
+    "get_account": _get_account,
+    "get_latest_blocks": lambda a: blockchain_service.get_latest_blocks(
+        a.get("count", 10), a.get("offset", 0)
+    ),
+    # Tokens
+    "get_token_info": lambda a: token_service.get_token_info(a["token_address"]),
+    "get_token_balance": lambda a: token_service.get_token_balance(
+        a["token_address"], a["address"]
+    ),
+    "get_celo_balances": _get_celo_balances,
+    "get_stable_token_balance": lambda a: token_service.get_stable_token_balance(
+        a["address"]
+    ),
+    "get_gas_fee_data": lambda a: transaction_service.get_gas_fee_data(),
+    # Contracts and transactions (read-only: eth_call and gas estimation)
+    "call_contract_function": lambda a: contract_service.call_function(
+        _function_call(a), _parse_abi(a["abi"])
+    ),
+    "estimate_contract_gas": lambda a: contract_service.estimate_gas(
+        _function_call(a), _parse_abi(a["abi"])
+    ),
+    "estimate_transaction": lambda a: transaction_service.estimate_transaction(
+        TransactionRequest(
+            to=a["to"],
+            from_address=a["from_address"],
+            value=str(a.get("value", "0")),
+            data=a.get("data", "0x"),
+        )
+    ),
+    # Governance
+    "get_governance_proposals": lambda a: governance_service.get_governance_proposals(
+        include_inactive=a.get("include_inactive", True),
+        include_metadata=a.get("include_metadata", True),
+        page=a.get("page"),
+        page_size=a.get("page_size", 10),
+        offset=a.get("offset"),
+        limit=a.get("limit"),
+    ),
+    "get_proposal_details": lambda a: governance_service.get_proposal_details(
+        a["proposal_id"]
+    ),
+    # Staking
+    "get_staking_balances": lambda a: staking_service.get_staking_balances(
+        a["address"]
+    ),
+    "get_activatable_stakes": lambda a: staking_service.get_activatable_stakes(
+        a["address"]
+    ),
+    "get_validator_groups": lambda a: staking_service.get_validator_groups(
+        page=a.get("page"),
+        page_size=a.get("page_size", 10),
+        offset=a.get("offset"),
+        limit=a.get("limit"),
+    ),
+    "get_validator_group_details": (
+        lambda a: staking_service.get_validator_group_details(a["group_address"])
+    ),
+    "get_total_staking_info": lambda a: staking_service.get_total_staking_info(),
+    # Faucet
+    "request_faucet_funds": lambda a: faucet_service.request_funds(
+        a["beneficiary"], a.get("network", "celo-sepolia"), a.get("wait", True)
+    ),
+    "get_faucet_request_status": lambda a: faucet_service.get_request_status(
+        a["request_key"], a.get("network", "celo-sepolia")
+    ),
+}
+
+
+def _error(message: str) -> CallToolResult:
+    return CallToolResult(
+        content=[TextContent(type="text", text=f"Error: {message}")],
+        is_error=True,
+    )
+
+
+async def call_tool_result(name: str, arguments: dict[str, Any]) -> CallToolResult:
+    """Run a tool and wrap its result for MCP.
+
+    Tools in OUTPUT_MODELS return structuredContent matching their outputSchema,
+    plus the same JSON as text for clients that only read text. Failures come
+    back with isError set, so a client can tell an error from a result.
+    """
+    handler = TOOL_HANDLERS.get(name)
+    if handler is None:
+        return _error(
+            f"Unknown tool: {name}. Available tools: "
+            + ", ".join(sorted(TOOL_HANDLERS))
+        )
+
+    required = _TOOL_REQUIRED_ARGS.get(name, ())
+    missing = [arg for arg in required if arg not in arguments]
+    if missing:
+        return _error(f"Missing required argument(s) for {name}: {', '.join(missing)}")
 
     try:
-        # Blockchain data operations
-        if name == "get_network_status":
-            result = await blockchain_service.get_network_status()
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result, indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_block":
-            block_identifier = arguments["block_identifier"]
-            include_transactions = arguments.get("include_transactions", False)
-            result = await blockchain_service.get_block_details(
-                block_identifier, include_transactions
-            )
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result, indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_transaction":
-            tx_hash = arguments["tx_hash"]
-            result = await blockchain_service.get_transaction_details(tx_hash)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result, indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_latest_blocks":
-            count = arguments.get("count", 10)
-            offset = arguments.get("offset", 0)
-            result = await blockchain_service.get_latest_blocks(count, offset)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(
-                        result,
-                        indent=2,
-                        cls=DateTimeEncoder,
-                    ),
-                )
-            ]
-
-        # Token operations
-        elif name == "get_token_balance":
-            token_address = arguments["token_address"]
-            address = arguments["address"]
-            result = await token_service.get_token_balance(token_address, address)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_celo_balances":
-            address = arguments["address"]
-            result = await token_service.get_celo_balances(address)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(
-                        [balance.model_dump() for balance in result],
-                        indent=2,
-                        cls=DateTimeEncoder,
-                    ),
-                )
-            ]
-
-        elif name == "get_stable_token_balance":
-            address = arguments["address"]
-            result = await token_service.get_stable_token_balance(address)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_gas_fee_data":
-            result = await transaction_service.get_gas_fee_data()
-            return [
-                TextContent(type="text", text=json.dumps(result.model_dump(), indent=2))
-            ]
-
-        # Governance operations
-        elif name == "get_governance_proposals":
-            include_inactive = arguments.get("include_inactive", True)
-            include_metadata = arguments.get("include_metadata", True)
-            page = arguments.get("page")
-            page_size = arguments.get("page_size", 10)
-            offset = arguments.get("offset")
-            limit = arguments.get("limit")
-            result = await governance_service.get_governance_proposals(
-                include_inactive=include_inactive,
-                include_metadata=include_metadata,
-                page=page,
-                page_size=page_size,
-                offset=offset,
-                limit=limit,
-            )
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_proposal_details":
-            proposal_id = arguments["proposal_id"]
-            result = await governance_service.get_proposal_details(proposal_id)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        # Staking operations
-        elif name == "get_staking_balances":
-            address = arguments["address"]
-            result = await staking_service.get_staking_balances(address)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_activatable_stakes":
-            address = arguments["address"]
-            result = await staking_service.get_activatable_stakes(address)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_validator_groups":
-            page = arguments.get("page")
-            page_size = arguments.get("page_size", 10)
-            offset = arguments.get("offset")
-            limit = arguments.get("limit")
-            result = await staking_service.get_validator_groups(
-                page=page,
-                page_size=page_size,
-                offset=offset,
-                limit=limit,
-            )
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_validator_group_details":
-            group_address = arguments["group_address"]
-            result = await staking_service.get_validator_group_details(group_address)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_total_staking_info":
-            result = await staking_service.get_total_staking_info()
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result, indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        # Faucet operations
-        elif name == "request_faucet_funds":
-            beneficiary = arguments["beneficiary"]
-            network = arguments.get("network", "celo-sepolia")
-            wait = arguments.get("wait", True)
-            result = await faucet_service.request_funds(beneficiary, network, wait)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        elif name == "get_faucet_request_status":
-            request_key = arguments["request_key"]
-            network = arguments.get("network", "celo-sepolia")
-            result = await faucet_service.get_request_status(request_key, network)
-            return [
-                TextContent(
-                    type="text",
-                    text=json.dumps(result.model_dump(), indent=2, cls=DateTimeEncoder),
-                )
-            ]
-
-        else:
-            raise ValueError(f"Unknown tool: {name}")
-
+        result = await handler(arguments)
     except Exception as e:
         logger.error(f"Error calling tool {name}: {e}")
-        return [TextContent(type="text", text=f"Error: {str(e)}")]
+        return _error(str(e))
+
+    if name in OUTPUT_MODELS:
+        structured = result.model_dump(mode="json")
+        return CallToolResult(
+            content=[TextContent(type="text", text=json.dumps(structured, indent=2))],
+            structured_content=structured,
+        )
+
+    return CallToolResult(
+        content=[
+            TextContent(
+                type="text", text=json.dumps(result, indent=2, cls=DateTimeEncoder)
+            )
+        ]
+    )
+
+
+async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
+    """Handle tool calls, returning only the text content.
+
+    Kept for callers of the previous interface; the MCP server uses
+    call_tool_result, which also carries structuredContent and isError.
+    """
+    result = await call_tool_result(name, arguments)
+    return [c for c in result.content if isinstance(c, TextContent)]
 
 
 async def _on_list_tools(
@@ -675,9 +859,8 @@ async def _on_list_tools(
 async def _on_call_tool(
     context: ServerRequestContext, params: CallToolRequestParams
 ) -> CallToolResult:
-    """Adapt call_tool to the mcp 2.x handler interface."""
-    content = await call_tool(params.name, params.arguments or {})
-    return CallToolResult(content=list(content))
+    """Adapt call_tool_result to the mcp 2.x handler interface."""
+    return await call_tool_result(params.name, params.arguments or {})
 
 
 # Initialize server
