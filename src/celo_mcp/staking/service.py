@@ -8,6 +8,7 @@ import os
 from web3 import Web3
 
 from ..blockchain_data import CeloClient
+from ..config.contracts import MAINNET, get_contract_address
 from ..utils import validate_address
 from ..utils.formatting import (
     format_address,
@@ -42,11 +43,14 @@ class StakingService:
         self._multicall_service = MulticallService(client)
         self._use_multicall = True  # Flag to enable/disable multicall
 
-        # Contract addresses on Celo mainnet
-        self.ELECTION_ADDRESS = "0x8D6677192144292870907E3Fa8A5527fE55A7ff6"
-        self.VALIDATORS_ADDRESS = "0xaEb865bCa93DdC8F47b8e29F40C5399cE34d0C58"
-        self.ACCOUNTS_ADDRESS = "0x7d21685C17607338b313a7174bAb6620baD0aaB7"
-        self.LOCKED_GOLD_ADDRESS = "0x6cC083Aed9e3ebe302A6336dBC7c921C9f03349E"
+        # Core contract addresses for the network the client is on. These were
+        # hardcoded to mainnet, so with CELO_MCP_USE_TESTNET=true every staking
+        # call went to addresses that hold no code on Celo Sepolia.
+        network = getattr(client, "network", MAINNET)
+        self.ELECTION_ADDRESS = get_contract_address("Election", network)
+        self.VALIDATORS_ADDRESS = get_contract_address("Validators", network)
+        self.ACCOUNTS_ADDRESS = get_contract_address("Accounts", network)
+        self.LOCKED_GOLD_ADDRESS = get_contract_address("LockedGold", network)
 
         # Contract ABIs (simplified - key functions only)
         self.ELECTION_ABI = [
