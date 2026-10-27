@@ -1,6 +1,6 @@
 """Celo MCP Server - A Model Context Protocol server for Celo blockchain data access."""
 
-__version__ = "0.1.0"
+__version__ = "0.4.3"
 __author__ = "viral-sangani"
 __email__ = "viral.sangani2011@gmail.com"
 
