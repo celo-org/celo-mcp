@@ -1,0 +1,17 @@
+  {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "org.celo/celo-mcp",
+    "title": "Celo MCP Server",
+    "description": "Query Celo blockchain data: blocks, tokens, NFTs, contracts, governance and staking",
+    "repository": { "url": "https://github.com/celo-org/celo-mcp", "source": "github" },
+    "version": "0.4.3",
+    "packages": [
+      {
+        "registryType": "pypi",
+        "identifier": "celo-mcp",
+        "version": "0.4.3",
+        "runtimeHint": "uvx",
+        "transport": { "type": "stdio" }
+      }
+    ]
+  }
