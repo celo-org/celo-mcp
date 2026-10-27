@@ -1,6 +1,6 @@
 [project]
 name = "celo_mcp"
-version = "0.4.1"
+version = "0.4.2"
 description = "A Model Context Protocol (MCP) server for Celo blockchain data access and functionality"
 readme = "README.md"
 authors = [
@@ -33,10 +33,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/viral-sangani/celo-mcp"
-Repository = "https://github.com/viral-sangani/celo-mcp"
-Documentation = "https://github.com/viral-sangani/celo-mcp#readme"
-Issues = "https://github.com/viral-sangani/celo-mcp/issues"
+Homepage = "https://github.com/celo-org/celo-mcp"
+Repository = "https://github.com/celo-org/celo-mcp"
+Documentation = "https://github.com/celo-org/celo-mcp#readme"
+Issues = "https://github.com/celo-org/celo-mcp/issues"
 
 [project.scripts]
 celo-mcp = "celo_mcp.server:main_sync"
