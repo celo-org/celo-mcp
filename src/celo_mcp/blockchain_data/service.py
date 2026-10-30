@@ -2,7 +2,7 @@
 
 import logging
 
-from .client import CeloClient
+from .client import CELO_SEPOLIA_CHAIN_ID, MAINNET_CHAIN_ID, CeloClient
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +25,24 @@ class BlockchainDataService:
                 }
 
             network_info = await self.client.get_network_info()
-            return {
+            status = {
                 "connected": True,
                 "network": network_info.model_dump(),
             }
+            expected = (
+                CELO_SEPOLIA_CHAIN_ID if self.client.use_testnet else MAINNET_CHAIN_ID
+            )
+            if network_info.chain_id != expected:
+                # The RPC URL and the testnet flag disagree, so contract
+                # addresses (picked by the flag) will not match the chain.
+                status["warning"] = (
+                    f"RPC endpoint reports chain ID {network_info.chain_id}, but "
+                    f"the server is configured for chain ID {expected}. Set "
+                    "CELO_MCP_USE_TESTNET to match CELO_MCP_RPC_URL; staking "
+                    "and governance tools use the addresses for the configured "
+                    "network."
+                )
+            return status
         except Exception as e:
             logger.error(f"Failed to get network status: {e}")
             return {"connected": False, "error": str(e)}
