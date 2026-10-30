@@ -106,6 +106,24 @@ async def test_only_the_faucet_is_not_read_only():
     assert not_read_only == {"request_faucet_funds"}
 
 
+async def test_the_faucet_is_not_presented_as_destructive():
+    # MCP defaults destructiveHint to true for a tool that is not read-only, so
+    # an unset hint makes clients gate a testnet drip as a destructive action.
+    tools = {t.name: t for t in await server.list_tools()}
+
+    wire = tools["request_faucet_funds"].annotations.model_dump(
+        by_alias=True, exclude_none=True
+    )
+    assert wire["destructiveHint"] is False
+    assert wire["idempotentHint"] is False
+    # The read-only tools leave both unset; readOnlyHint already covers them.
+    read_only = tools["get_network_status"].annotations.model_dump(
+        by_alias=True, exclude_none=True
+    )
+    assert "destructiveHint" not in read_only
+    assert "idempotentHint" not in read_only
+
+
 async def test_abi_may_be_passed_as_a_json_string(monkeypatch):
     contracts = MagicMock()
     contracts.call_function = AsyncMock(

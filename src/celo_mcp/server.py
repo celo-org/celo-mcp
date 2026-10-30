@@ -659,9 +659,16 @@ async def list_tools() -> list[Tool]:
     """List available tools, with output schemas and read-only hints."""
     tools = []
     for tool in _tool_definitions():
+        writes = tool.name in _WRITE_TOOLS
         update: dict[str, Any] = {
             "annotations": ToolAnnotations(
-                read_only_hint=tool.name not in _WRITE_TOOLS,
+                read_only_hint=not writes,
+                # MCP defaults destructiveHint to true for any tool that is not
+                # read-only. The faucet only sends testnet CELO to the caller, so
+                # say so, or clients gate it as a destructive action. Not
+                # idempotent: each request is a separate drip.
+                destructive_hint=False if writes else None,
+                idempotent_hint=False if writes else None,
                 open_world_hint=True,
             )
         }
