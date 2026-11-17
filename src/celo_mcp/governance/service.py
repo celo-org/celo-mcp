@@ -8,7 +8,7 @@ from datetime import datetime
 import httpx
 import yaml
 
-from ..config.contracts import get_governance_address
+from ..config.contracts import MAINNET, get_governance_address
 from ..utils.multicall import MulticallService
 from .formatting import (
     format_proposal_summary,
@@ -135,6 +135,9 @@ class GovernanceService:
     def __init__(self, client):
         """Initialize the service with a CeloClient."""
         self.client = client
+        # Pick the Governance contract for the client's network; it was always
+        # the mainnet address, which has no code on Celo Sepolia.
+        self._network = getattr(client, "network", MAINNET)
         self._governance_abi = self._load_governance_abi()
         self._multicall_service = MulticallService(client)
         self._use_multicall = True  # Flag to enable/disable multicall
@@ -574,7 +577,7 @@ class GovernanceService:
 
     async def _fetch_single_proposal(self, proposal_id: int) -> Proposal | None:
         """Fetch a single proposal's data from on-chain."""
-        governance_address = get_governance_address()
+        governance_address = get_governance_address(self._network)
 
         # Create contract instance using Web3 directly
         contract = self.client.w3.eth.contract(
@@ -653,7 +656,7 @@ class GovernanceService:
 
     async def _fetch_governance_proposals(self) -> list[Proposal]:
         """Fetch proposals from the governance contract."""
-        governance_address = get_governance_address()
+        governance_address = get_governance_address(self._network)
 
         # Create contract instance using Web3 directly
         contract = self.client.w3.eth.contract(
@@ -949,7 +952,7 @@ class GovernanceService:
         self, limit: int | None = 15
     ) -> list[Proposal]:
         """Fetch proposals from the governance contract with optimizations for speed."""
-        governance_address = get_governance_address()
+        governance_address = get_governance_address(self._network)
 
         # Create contract instance using Web3 directly
         contract = self.client.w3.eth.contract(
@@ -1100,7 +1103,7 @@ class GovernanceService:
         self, limit: int = 15
     ) -> list[Proposal]:
         """Fetch minimal proposal data for ultra-fast responses under 5 seconds."""
-        governance_address = get_governance_address()
+        governance_address = get_governance_address(self._network)
 
         # Create contract instance using Web3 directly
         contract = self.client.w3.eth.contract(
@@ -1228,7 +1231,7 @@ class GovernanceService:
         self, limit: int = 15
     ) -> list[Proposal]:
         """Fetch proposals using Multicall3 for maximum speed (sub-second response)."""
-        governance_address = get_governance_address()
+        governance_address = get_governance_address(self._network)
 
         # Create contract instance using Web3 directly
         contract = self.client.w3.eth.contract(
