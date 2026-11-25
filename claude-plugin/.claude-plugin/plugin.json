@@ -1,8 +1,11 @@
 {
   "name": "celo-mcp",
   "displayName": "Celo MCP Server",
-  "version": "0.4.3",
-  "description": "Gives Claude read access to the Celo network: stablecoin and token balances, blocks and transactions, gas fees, governance proposals and staking.",
-  "author": { "name": "Celo", "url": "https://celo.org" },
+  "version": "0.5.0",
+  "description": "Gives Claude read access to the Celo network: stablecoin and token balances, accounts, blocks and transactions, gas fees, read-only contract calls, governance proposals and staking.",
+  "author": {
+    "name": "Celo",
+    "url": "https://celo.org"
+  },
   "license": "MIT"
 }

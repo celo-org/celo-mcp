@@ -2,7 +2,7 @@
   "mcpServers": {
     "celo": {
       "command": "uvx",
-      "args": ["celo-mcp==0.4.3"]
+      "args": ["celo-mcp==0.5.0"]
     }
   }
 }
