@@ -112,3 +112,19 @@ async def test_every_read_tool_returns_a_valid_result():
         )
         assert contract_call.structured_content["success"] is True
         assert isinstance(contract_call.structured_content["result"], str | int)
+
+
+async def test_stable_token_balance_agrees_with_a_direct_balance_of():
+    # The multicall path decodes raw bytes; get_token_balance decodes through
+    # web3. Both read USDm for the same address, so they must agree.
+    async with Client(server.server) as client:
+        stable = await client.call_tool(
+            "get_stable_token_balance", {"address": GOVERNANCE}
+        )
+        direct = await client.call_tool(
+            "get_token_balance", {"token_address": USDM, "address": GOVERNANCE}
+        )
+
+    by_symbol = {b["token_symbol"]: b for b in stable.structured_content["balances"]}
+    assert by_symbol["USDm"]["balance"] == direct.structured_content["balance"]
+    assert stable.structured_content["summary"]["network"] == "mainnet"

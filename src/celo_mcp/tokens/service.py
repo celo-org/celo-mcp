@@ -158,6 +158,20 @@ STABLE_TOKENS = {
 }
 
 
+def _decode_uint256(data: bytes | str) -> int:
+    """Decode a single ABI-encoded uint256, as returned by balanceOf.
+
+    Multicall3's aggregate3 hands back the raw 32 return bytes. A hex string
+    is accepted too. Anything shorter than one word is malformed and raises,
+    so the multicall marks that call as failed instead of reporting 0.
+    """
+    if isinstance(data, str):
+        data = bytes.fromhex(data.removeprefix("0x"))
+    if len(data) < 32:
+        raise ValueError(f"expected a 32-byte uint256, got {len(data)} bytes")
+    return int.from_bytes(data[:32], "big")
+
+
 class TokenService:
     """Service for token operations."""
 
@@ -424,27 +438,27 @@ class TokenService:
             call_map = {}  # Track which call corresponds to which token
             call_index = 0
 
-            # Helper function for balance decoding
-            def make_balance_decoder():
-                def decode(data):
-                    # For balanceOf, we expect a single uint256 return value
-                    # Decode it directly from the hex data
-                    if data and len(data) >= 66:  # 0x + 64 hex chars = 66 total
-                        try:
-                            return int(data, 16)
-                        except ValueError:
-                            return 0
-                    return 0
+            balance_decoder = _decode_uint256
 
-                return decode
-
-            balance_decoder = make_balance_decoder()
+            # STABLE_TOKENS lists mainnet addresses. On Celo Sepolia the
+            # tokens that exist there are read at their testnet address from
+            # CELO_TOKENS; the rest are reported as unavailable instead of
+            # being queried at an address that holds no code.
+            use_testnet = bool(getattr(self.client, "use_testnet", False))
+            unavailable_on_network: list[str] = []
 
             # Add balance calls for each stable token
             for token_symbol, token_info in STABLE_TOKENS.items():
                 if token_symbol == "CELO":
                     # Skip CELO token contract, we'll get native balance separately
                     continue
+
+                if use_testnet:
+                    testnet_address = CELO_TOKENS.get(token_symbol, {}).get("testnet")
+                    if not testnet_address:
+                        unavailable_on_network.append(token_symbol)
+                        continue
+                    token_info = {**token_info, "address": testnet_address}
 
                 token_address = token_info["address"]
 
@@ -534,9 +548,14 @@ class TokenService:
             if native_celo_balance:
                 successful_count += 1
 
+            # Tokens actually queried: the ERC-20 calls plus native CELO.
+            tokens_checked = len(call_map) + 1
+
             # Create summary
             summary = {
-                "total_tokens": len(STABLE_TOKENS),
+                "network": "testnet" if use_testnet else "mainnet",
+                "unavailable_on_network": unavailable_on_network,
+                "total_tokens": tokens_checked,
                 "successful_tokens": successful_count,
                 "native_celo_included": native_celo_balance is not None,
                 "tokens_with_balance": len(
@@ -544,7 +563,7 @@ class TokenService:
                 ),
                 "message": (
                     f"Successfully fetched {successful_count} of "
-                    f"{len(STABLE_TOKENS)} token balances"
+                    f"{tokens_checked} token balances"
                 ),
             }
 
@@ -553,7 +572,7 @@ class TokenService:
                 balances=balances,
                 native_celo_balance=native_celo_balance,
                 summary=summary,
-                total_tokens_checked=len(STABLE_TOKENS),
+                total_tokens_checked=tokens_checked,
                 successful_tokens=successful_count,
             )
 
