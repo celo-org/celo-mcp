@@ -12,6 +12,30 @@ from .models import ContractCallResult, FunctionCall, GasEstimate
 
 logger = logging.getLogger(__name__)
 
+# Largest integer a JSON parser that uses IEEE-754 doubles (JavaScript, and so
+# most MCP clients) can hold exactly.
+_MAX_SAFE_INTEGER = 2**53 - 1
+
+
+def _to_json_safe(value: Any) -> Any:
+    """Make a decoded contract return value safe to send as JSON.
+
+    Token amounts routinely exceed 2^53, and a JavaScript client would round
+    them silently, so large integers become decimal strings. Bytes become
+    0x-prefixed hex, and tuples (multi-value returns, structs) become lists.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return str(value) if abs(value) > _MAX_SAFE_INTEGER else value
+    if isinstance(value, bytes | bytearray):
+        return "0x" + bytes(value).hex()
+    if isinstance(value, list | tuple):
+        return [_to_json_safe(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _to_json_safe(v) for k, v in value.items()}
+    return value
+
 
 class ContractService:
     """Service for smart contract interactions."""
@@ -71,7 +95,7 @@ class ContractService:
             return ContractCallResult(
                 contract_address=call.contract_address,
                 function_name=call.function_name,
-                result=result,
+                result=_to_json_safe(result),
                 success=True,
             )
 

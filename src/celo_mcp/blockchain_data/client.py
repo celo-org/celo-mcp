@@ -10,6 +10,7 @@ from web3 import Web3
 from web3.middleware import ExtraDataToPOAMiddleware
 
 from ..config import get_settings
+from ..config.contracts import CELO_SEPOLIA, MAINNET
 from ..utils import validate_address, validate_block_number, validate_tx_hash
 from .models import Account, Block, NetworkInfo, Transaction
 
@@ -80,6 +81,17 @@ class CeloClient:
 
         # Add Celo PoA middleware
         self.w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+
+    @property
+    def network(self) -> str:
+        """Network name used to pick contract addresses: mainnet or celo-sepolia.
+
+        Follows use_testnet, not the RPC URL. A custom CELO_MCP_RPC_URL that
+        points at a Celo Sepolia node also needs CELO_MCP_USE_TESTNET=true, or
+        the staking and governance tools will look for mainnet contracts there.
+        get_network_status reports a mismatch between the two.
+        """
+        return CELO_SEPOLIA if self.use_testnet else MAINNET
 
     async def __aenter__(self):
         """Async context manager entry."""
