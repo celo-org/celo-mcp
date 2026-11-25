@@ -21,6 +21,7 @@ from mcp.types import (
 from pydantic import BaseModel
 
 from .blockchain_data import BlockchainDataService
+from .config import get_settings
 from .contracts import ContractService
 from .contracts.models import ContractCallResult, FunctionCall, GasEstimate
 from .faucet import SUPPORTED_NETWORKS, FaucetService
@@ -654,13 +655,57 @@ OUTPUT_MODELS: dict[str, type[BaseModel]] = {
 # Everything except the faucet only reads from the chain.
 _WRITE_TOOLS = {"request_faucet_funds"}
 
+# The faucet tools need CELO_MCP_FAUCET_API_KEY. Without it they are not listed
+# at all, so a hosted instance that runs without a key exposes only the read
+# tools and a client never sees a tool it cannot call.
+_FAUCET_TOOLS = {"request_faucet_funds", "get_faucet_request_status"}
+
+# Human-readable titles, shown by clients next to the tool name. The connector
+# directory requires one on every tool.
+TOOL_TITLES: dict[str, str] = {
+    "get_network_status": "Network status",
+    "get_block": "Get block",
+    "get_transaction": "Get transaction",
+    "get_latest_blocks": "Latest blocks",
+    "get_account": "Account details",
+    "get_token_info": "Token info",
+    "get_token_balance": "Token balance",
+    "get_celo_balances": "CELO and stablecoin balances",
+    "get_stable_token_balance": "Stablecoin balances",
+    "get_gas_fee_data": "Gas fees",
+    "call_contract_function": "Call contract function (read-only)",
+    "estimate_contract_gas": "Estimate contract gas",
+    "estimate_transaction": "Estimate transaction cost",
+    "get_governance_proposals": "Governance proposals",
+    "get_proposal_details": "Governance proposal details",
+    "get_staking_balances": "Staking balances",
+    "get_activatable_stakes": "Activatable stakes",
+    "get_validator_groups": "Validator groups",
+    "get_validator_group_details": "Validator group details",
+    "get_total_staking_info": "Network staking totals",
+    "request_faucet_funds": "Request testnet CELO",
+    "get_faucet_request_status": "Faucet request status",
+}
+
+
+def faucet_enabled() -> bool:
+    """Whether the faucet tools are available: needs CELO_MCP_FAUCET_API_KEY."""
+    return bool(get_settings().faucet_api_key)
+
 
 async def list_tools() -> list[Tool]:
-    """List available tools, with output schemas and read-only hints."""
+    """List available tools, with titles, output schemas and read-only hints.
+
+    The faucet tools are left out when no faucet API key is configured.
+    """
     tools = []
+    include_faucet = faucet_enabled()
     for tool in _tool_definitions():
+        if tool.name in _FAUCET_TOOLS and not include_faucet:
+            continue
         writes = tool.name in _WRITE_TOOLS
         update: dict[str, Any] = {
+            "title": TOOL_TITLES[tool.name],
             "annotations": ToolAnnotations(
                 read_only_hint=not writes,
                 # MCP defaults destructiveHint to true for any tool that is not
@@ -670,7 +715,7 @@ async def list_tools() -> list[Tool]:
                 destructive_hint=False if writes else None,
                 idempotent_hint=False if writes else None,
                 open_world_hint=True,
-            )
+            ),
         }
         model = OUTPUT_MODELS.get(tool.name)
         if model is not None:
@@ -817,6 +862,13 @@ async def call_tool_result(name: str, arguments: dict[str, Any]) -> CallToolResu
         return _error(
             f"Unknown tool: {name}. Available tools: "
             + ", ".join(sorted(TOOL_HANDLERS))
+        )
+
+    if name in _FAUCET_TOOLS and not faucet_enabled():
+        return _error(
+            f"{name} is not available on this server: CELO_MCP_FAUCET_API_KEY "
+            "is not set. Create a key at https://faucet.celo.org/keys and set it "
+            "in the environment of a server you run yourself."
         )
 
     required = _TOOL_REQUIRED_ARGS.get(name, ())

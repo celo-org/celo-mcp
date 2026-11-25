@@ -49,7 +49,10 @@ def documented():
 
 
 @pytest.fixture
-async def registered():
+async def registered(monkeypatch):
+    # The README documents the faucet tools, which are only listed when a
+    # faucet key is configured.
+    monkeypatch.setenv("CELO_MCP_FAUCET_API_KEY", "test-key")
     return {tool.name: tool for tool in await list_tools()}
 
 

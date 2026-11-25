@@ -25,6 +25,12 @@ TOKEN = TokenInfo(
 )
 
 
+@pytest.fixture(autouse=True)
+def _faucet_key(monkeypatch):
+    """Most tests here look at the full tool list, which needs a faucet key."""
+    monkeypatch.setenv("CELO_MCP_FAUCET_API_KEY", "test-key")
+
+
 @pytest.fixture
 def token_service(monkeypatch):
     service = MagicMock()
@@ -155,3 +161,42 @@ def test_contract_results_are_json_safe():
     assert _to_json_safe(True) is True
     assert _to_json_safe(b"\x01\xab") == "0x01ab"
     assert _to_json_safe((1, (b"\x00", 2**64))) == [1, ["0x00", str(2**64)]]
+
+
+async def test_every_tool_has_a_title():
+    # The connector directory requires a title on every tool.
+    tools = await server.list_tools()
+
+    assert all(t.title for t in tools), [t.name for t in tools if not t.title]
+    assert set(server.TOOL_TITLES) == {t.name for t in tools}
+
+
+async def test_faucet_tools_are_hidden_without_a_key(monkeypatch):
+    monkeypatch.delenv("CELO_MCP_FAUCET_API_KEY")
+
+    names = {t.name for t in await server.list_tools()}
+
+    assert names.isdisjoint(server._FAUCET_TOOLS)
+    assert "get_token_info" in names
+    assert len(names) == len(server.TOOL_HANDLERS) - len(server._FAUCET_TOOLS)
+
+
+async def test_faucet_call_without_a_key_is_an_error_not_a_crash(monkeypatch):
+    monkeypatch.delenv("CELO_MCP_FAUCET_API_KEY")
+    faucet = MagicMock()
+    faucet.request_funds = AsyncMock()
+    monkeypatch.setattr(server, "faucet_service", faucet)
+
+    result = await server.call_tool_result(
+        "request_faucet_funds", {"beneficiary": "0x" + "1" * 40}
+    )
+
+    assert result.is_error is True
+    assert "CELO_MCP_FAUCET_API_KEY" in result.content[0].text
+    faucet.request_funds.assert_not_called()
+
+
+async def test_faucet_tools_are_listed_with_a_key():
+    names = {t.name for t in await server.list_tools()}
+
+    assert server._FAUCET_TOOLS <= names

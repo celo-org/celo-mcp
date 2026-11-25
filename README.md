@@ -60,6 +60,15 @@ For Claude Desktop, add this configuration to your MCP settings file (`~/Library
 }
 ```
 
+### Claude Code
+
+```bash
+claude mcp add celo-mcp -- uvx --refresh celo-mcp
+```
+
+Add `--scope user` to make it available in every project. To use the faucet
+tools, pass the key through: `claude mcp add celo-mcp -e CELO_MCP_FAUCET_API_KEY=<key> -- uvx --refresh celo-mcp`.
+
 ### Connect remotely (Streamable HTTP)
 
 The server can also run as a remote MCP endpoint over Streamable HTTP, so clients
@@ -118,7 +127,9 @@ celo-mcp-server
 
 The list below is what the server registers; `tests/test_readme_tools.py` fails
 if the two drift apart. Every tool except `request_faucet_funds` only reads from
-the chain: nothing here signs or sends a transaction.
+the chain: nothing here signs or sends a transaction. The two faucet tools are
+only listed when `CELO_MCP_FAUCET_API_KEY` is set, so a server without a key
+exposes 20 read-only tools.
 
 #### Blockchain Data Operations
 
