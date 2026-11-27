@@ -4,9 +4,26 @@ The HTTP transport is a standard container. It runs anywhere that runs a Docker 
 and honours `$PORT`. Below is Google Cloud Run as the primary example; any container
 host (Fly.io, Railway, Render, a VM) works the same way.
 
-> Note: choosing and paying for the **official** hosted endpoint (e.g. `mcp.celo.org`,
-> ownership, SLAs) is intentionally out of scope for this change — it is a follow-up for
-> the Celo org. What follows is enough to self-host or run a verification instance.
+## The official instance
+
+`https://mcp.celo.org/mcp` is a Cloud Run service in the project `celo-mcp-516015`
+(region `europe-west1`), built from the `v0.5.0` tag with the Dockerfile in this repo.
+Production settings:
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| `MCP_ALLOWED_HOSTS` | `mcp.celo.org` | DNS-rebinding protection stays on; the raw `*.run.app` hostname answers 421 |
+| `MCP_TRUST_PROXY` | `2` | Google's frontend appends `<client>,<lb>`; the rate limiter keys on the client |
+| `MCP_RATE_LIMIT` / `MCP_RATE_WINDOW` | `60` / `60` | per-instance, best effort |
+| `MCP_CORS_ORIGINS` | `https://claude.ai` | the only browser origin that needs it |
+| `MCP_AUTH_TOKEN` | unset | public, read-only data |
+| `CELO_MCP_FAUCET_API_KEY` | unset | the faucet tools are not listed on the public instance |
+| instances | min 1, max 3, 1 vCPU, 512 MiB | no cold start on the first call |
+
+To ship a new version: tag a release, then redeploy from the tag with the same
+`gcloud run deploy --source .` command and flags as below, swapping in the values
+above. The domain mapping is created once by a verified `celo.org` owner and does
+not need to be touched again.
 
 ## Run locally (no container)
 
